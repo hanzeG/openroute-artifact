@@ -28,24 +28,21 @@ source .env
 set +a
 ```
 
-Delta Sharing access requires credentials, so this artifact bundles the query
-results used by the paper. `data/delta_exports/` contains the AMM, CLOB, and
-AMM-fee parquet rows, `data/token_selection/target_window_rankings/` contains
-the pair-selection ranking tables, and
-`configs/empirical/paper_pairs.resolved.json` contains the resolved
-currency/issuer identifiers for the ten paper pairs.
-
 ## 2. Quick Check
 
 ```bash
 PYTHONPATH=src pytest tests
 ```
 
-## 3. Pair Selection Inputs
+## 3. Bundled Delta Inputs
 
+Delta Sharing access requires credentials, so the credentialed query results
+used by the paper are included in this artifact.
 The ten paper pairs are already resolved in
 `configs/empirical/paper_pairs.resolved.json`. The source ranking tables used to
 select them are included under `data/token_selection/target_window_rankings/`.
+The AMM, CLOB, and AMM-fee parquet rows used to build the experiment datasets
+are included under `data/delta_exports/`.
 
 ## 4. Build Dataset Roots
 
@@ -80,9 +77,9 @@ load_pair() {
 }
 ```
 
-### 4.1 Use Bundled Delta Sharing Rows
+### 4.1 Stage Bundled Delta Rows
 
-Copies the bundled Delta Sharing query results into the working artifact tree.
+Stages the bundled Delta rows into the working artifact tree.
 
 ```bash
 for PAIR in "${PAIR_LIST[@]}"; do
