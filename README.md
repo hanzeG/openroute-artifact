@@ -198,6 +198,7 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --dataset-root ${DATASET} \
     --output-dir artifacts/compare/${PAIR}/${WINDOW}/final_fit \
     --aggregate-only \
+    --write-non-strict-reports \
     --top-relative-errors 50
 done
 ```
@@ -225,6 +226,15 @@ python empirical/scripts/empirical_run_best_price_fixed_output_pairs.py \
 ## 5. Paper Data Summaries
 
 ```bash
+python empirical/scripts/empirical_summarize_pair_setup.py \
+  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --output-dir artifacts/results/pair_setup
+
+python empirical/scripts/empirical_summarize_baseline_fit_pairs.py \
+  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --compare-root artifacts/compare \
+  --output-dir artifacts/results/baseline_fit
+
 python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
   --batch-root artifacts/optimisation/${WINDOW} \
   --output-md artifacts/results/same_fill_summary.md \
@@ -235,6 +245,13 @@ python empirical/scripts/empirical_summarize_paper_data.py \
   --pair-config artifacts/config/paper_pairs.resolved.json \
   --fit-input-root artifacts/fit_inputs \
   --output-dir artifacts/results/paper_data
+
+python empirical/scripts/empirical_extract_same_fill_cases.py \
+  --results-root artifacts/optimisation/${WINDOW} \
+  --tx-hash 60B4071AB9FFDF43C4190DE1C216FD57E366A23859FAFE3DB1364C209CABCC80 \
+  --tx-hash 21D4A30EEF00C483C53171E96FB66591DC82FF480CFF6A3A48ACA506E0B1DF77 \
+  --tx-hash 3B56837BD05F0DC6B25D660423B444703D89FD1BE1F191C8E1BB83AA8EC6C6E3 \
+  --output-json artifacts/results/case_studies/same_fill_cases.json
 ```
 
 Baseline replay reports are written to `artifacts/compare/*/*/final_fit/error_analysis.md`.
