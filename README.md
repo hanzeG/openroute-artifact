@@ -28,25 +28,29 @@ source .env
 set +a
 ```
 
-## 2. Quick Check
+## 2. Included Inputs
+
+Delta Sharing access requires credentials. The query results used by the paper
+are bundled here, so reviewers can run the artifact without Delta Sharing
+access.
+
+- `configs/empirical/paper_pairs.resolved.json`: the ten token pairs and ledger
+  window.
+- `data/token_selection/target_window_rankings/`: the pair-selection ranking
+  tables.
+- `data/delta_exports/`: the AMM, CLOB, and AMM-fee parquet rows used to build
+  the experiment datasets.
+
+## 3. Quick Check
 
 ```bash
 PYTHONPATH=src pytest tests
 ```
 
-## 3. Bundled Delta Inputs
-
-Delta Sharing access requires credentials, so the credentialed query results
-used by the paper are included in this artifact.
-The ten paper pairs are already resolved in
-`configs/empirical/paper_pairs.resolved.json`. The source ranking tables used to
-select them are included under `data/token_selection/target_window_rankings/`.
-The AMM, CLOB, and AMM-fee parquet rows used to build the experiment datasets
-are included under `data/delta_exports/`.
-
 ## 4. Build Dataset Roots
 
-The commands in this section create one canonical dataset root per pair under `artifacts/fit_inputs`.
+The commands in this section create one canonical dataset root per pair under
+`artifacts/fit_inputs`.
 
 ### 4.0 Shared Shell Context
 
@@ -79,7 +83,7 @@ load_pair() {
 
 ### 4.1 Stage Bundled Delta Rows
 
-Stages the bundled Delta rows into the working artifact tree.
+Stages the bundled Delta rows into `artifacts/exports`.
 
 ```bash
 for PAIR in "${PAIR_LIST[@]}"; do
