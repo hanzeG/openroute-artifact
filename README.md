@@ -2,7 +2,14 @@
 
 Run the commands below in order to reproduce the empirical inputs, baseline replay checks, same-fill optimisation outputs, and paper-data summaries.
 
-## 0. Setup
+## 0. Clone
+
+```bash
+git clone https://github.com/hanzeG/openroute-artifact.git
+cd openroute-artifact
+```
+
+## 1. Environment Setup
 
 ```bash
 conda env create -f environment.yml
@@ -28,7 +35,7 @@ cp data/config.share.example data/config.share
 chmod 600 data/config.share
 ```
 
-## 1. Quick Check
+## 2. Quick Check
 
 ```bash
 PYTHONPATH=src pytest \
@@ -38,7 +45,7 @@ PYTHONPATH=src pytest \
   tests/rebuild/test_amm_rebuild.py
 ```
 
-## 2. Resolve the Ten Paper Pairs
+## 3. Resolve the Ten Paper Pairs
 
 This resolves token currency/issuer identifiers from the Delta Sharing AMM table.
 
@@ -58,11 +65,11 @@ Expected output:
 artifacts/config/paper_pairs.resolved.json
 ```
 
-## 3. Build Dataset Roots
+## 4. Build Dataset Roots
 
 The commands in this section create one canonical dataset root per pair under `artifacts/fit_inputs`.
 
-### 3.0 Shared Shell Context
+### 4.0 Shared Shell Context
 
 Run this once per shell session before the remaining commands.
 
@@ -91,7 +98,7 @@ load_pair() {
 }
 ```
 
-### 3.1 Export Delta Sharing Rows
+### 4.1 Export Delta Sharing Rows
 
 Exports AMM swaps, CLOB legs, and AMM fees for each pair/window.
 
@@ -125,7 +132,7 @@ artifacts/exports/<pair>/<window>/clob_legs
 artifacts/exports/<pair>/<window>/amm_fees
 ```
 
-### 3.2 Build Transaction Lists and Fetch Metadata
+### 4.2 Build Transaction Lists and Fetch Metadata
 
 Builds the pair-level transaction sequence and fetches full ledger metadata for the window.
 
@@ -153,7 +160,7 @@ artifacts/inputs/<pair>/<window>/prebook_ledgers_full.txt
 artifacts/metadata/<pair>/<window>/tx_metadata_full_merged.ndjson
 ```
 
-### 3.3 Select Direct Target Transactions
+### 4.3 Select Direct Target Transactions
 
 Filters the exported pair activity to direct single-path target transactions.
 
@@ -178,7 +185,7 @@ Expected output per pair:
 artifacts/targets/<pair>/<window>/strict_direct/required_tx.csv
 ```
 
-### 3.4 Fetch Prebook and Account-Line Snapshots
+### 4.4 Fetch Prebook and Account-Line Snapshots
 
 Fetches ledger-level book offers and account-line snapshots required for tx-level pre-state replay.
 
@@ -219,7 +226,7 @@ artifacts/account_lines/<pair>/<window>/account_lines_snapshots.ndjson
 
 The `book_getsrUSD.ndjson` name is a legacy token-side filename; it is used for all issued-token/XRP pairs.
 
-### 3.5 Replay Tx-Level Prebook State
+### 4.5 Replay Tx-Level Prebook State
 
 Replays all preceding transactions in the window to produce the prebook snapshot seen by each target transaction.
 
@@ -247,7 +254,7 @@ Expected output per pair:
 artifacts/replay/<pair>/<window>/tx_prebook_replay_snapshots.ndjson
 ```
 
-### 3.6 Assemble Dataset Roots and Enrich Ledger Fields
+### 4.6 Assemble Dataset Roots and Enrich Ledger Fields
 
 Assembles the canonical dataset root and fetches transfer-rate and tick-size inputs used by the replay model.
 
@@ -286,7 +293,7 @@ Expected output per pair:
 artifacts/fit_inputs/<pair>/<window>/strict_direct_targets/two_week_isolated/dataset_manifest.json
 ```
 
-### 3.7 Preliminary Replay Fit and Account-Offers Snapshots
+### 4.7 Preliminary Replay Fit and Account-Offers Snapshots
 
 The preliminary fit identifies target transactions that need account-offers snapshots for fundedness reconstruction.
 
@@ -328,7 +335,7 @@ artifacts/compare/<pair>/<window>/preliminary_fit/aggregate.json
 artifacts/account_offers/<pair>/<window>/account_offers_targets.csv
 ```
 
-### 3.8 Final Baseline Replay Fit
+### 4.8 Final Baseline Replay Fit
 
 Runs the final baseline replay check against the completed dataset root.
 
@@ -352,7 +359,7 @@ artifacts/compare/<pair>/<window>/final_fit/aggregate.json
 artifacts/compare/<pair>/<window>/final_fit/error_analysis.md
 ```
 
-## 4. Same-Fill Optimisation
+## 5. Same-Fill Optimisation
 
 Build the optimiser pair arguments from the dataset manifests:
 
@@ -381,11 +388,11 @@ Expected output:
 artifacts/optimisation/<window>/<PAIR_LABEL>/results.ndjson
 ```
 
-## 5. Paper Data Summaries
+## 6. Paper Data Summaries
 
 These commands produce compact JSON/Markdown summaries used to check the paper tables, figures, and case studies.
 
-### 5.1 Pair Setup Summary
+### 6.1 Pair Setup Summary
 
 ```bash
 python empirical/scripts/empirical_summarize_pair_setup.py \
@@ -393,7 +400,7 @@ python empirical/scripts/empirical_summarize_pair_setup.py \
   --output-dir artifacts/results/pair_setup
 ```
 
-### 5.2 Baseline Fit Summary
+### 6.2 Baseline Fit Summary
 
 ```bash
 python empirical/scripts/empirical_summarize_baseline_fit_pairs.py \
@@ -402,7 +409,7 @@ python empirical/scripts/empirical_summarize_baseline_fit_pairs.py \
   --output-dir artifacts/results/baseline_fit
 ```
 
-### 5.3 Same-Fill Optimisation Summary
+### 6.3 Same-Fill Optimisation Summary
 
 ```bash
 python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
@@ -411,7 +418,7 @@ python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
   --output-json artifacts/results/same_fill_summary.json
 ```
 
-### 5.4 Paper Analysis Summary
+### 6.4 Paper Analysis Summary
 
 ```bash
 python empirical/scripts/empirical_summarize_paper_data.py \
@@ -421,7 +428,7 @@ python empirical/scripts/empirical_summarize_paper_data.py \
   --output-dir artifacts/results/paper_data
 ```
 
-### 5.5 Case-Study Rows
+### 6.5 Case-Study Rows
 
 ```bash
 python empirical/scripts/empirical_extract_same_fill_cases.py \
