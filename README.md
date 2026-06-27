@@ -28,12 +28,12 @@ source .env
 set +a
 ```
 
-The repository includes the Delta Sharing query results needed by the paper:
-`data/delta_exports/` contains the bundled AMM, CLOB, and AMM-fee parquet rows,
-`data/token_selection/target_window_rankings/` contains the pair-selection
-ranking tables, and `configs/empirical/paper_pairs.resolved.json` contains the
-resolved currency/issuer identifiers for the ten paper pairs. A Delta Sharing
-credential is only needed to regenerate these bundled files.
+Delta Sharing access requires credentials, so this artifact bundles the query
+results used by the paper. `data/delta_exports/` contains the AMM, CLOB, and
+AMM-fee parquet rows, `data/token_selection/target_window_rankings/` contains
+the pair-selection ranking tables, and
+`configs/empirical/paper_pairs.resolved.json` contains the resolved
+currency/issuer identifiers for the ten paper pairs.
 
 ## 2. Quick Check
 
@@ -46,24 +46,6 @@ PYTHONPATH=src pytest tests
 The ten paper pairs are already resolved in
 `configs/empirical/paper_pairs.resolved.json`. The source ranking tables used to
 select them are included under `data/token_selection/target_window_rankings/`.
-
-To regenerate the resolved pair file from Delta Sharing, run:
-
-```bash
-python empirical/scripts/empirical_resolve_paper_pairs.py \
-  --pair-config configs/empirical/paper_pairs.json \
-  --share-profile data/config.share \
-  --share ripple-ubri-share \
-  --schema ripplex \
-  --table-amm fact_amm_swaps \
-  --output configs/empirical/paper_pairs.resolved.json
-```
-
-Expected output:
-
-```text
-configs/empirical/paper_pairs.resolved.json
-```
 
 ## 4. Build Dataset Roots
 
@@ -121,10 +103,6 @@ artifacts/exports/<pair>/<window>/amm_swaps
 artifacts/exports/<pair>/<window>/clob_legs
 artifacts/exports/<pair>/<window>/amm_fees
 ```
-
-To regenerate these bundled rows from Delta Sharing, copy an authorised profile
-to `data/config.share` and run `empirical/scripts/empirical_export_window.py`
-with the table names `fact_amm_swaps`, `offers_fact_tx`, and `fact_amm_fees`.
 
 ### 4.2 Build Transaction Lists and Fetch Metadata
 
