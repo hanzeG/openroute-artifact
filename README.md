@@ -1,37 +1,6 @@
-# OpenRoute Artifact
+# OpenRoute Artifact Commands
 
-This repository contains the lightweight code artifact for OpenRoute. It is
-intended for anonymous review and contains the implementation and scripts needed
-to reproduce the data-processing path, replay checks, and same-fill routing
-optimisation experiments.
-
-The paper source, paper build outputs, full XRPL ledger snapshots, and large
-intermediate experiment artifacts are intentionally not included.
-
-## Repository Contents
-
-- `src/xrpl_router/`: AMM/CLOB amount domains, executable source kernels, route
-  steps, transaction intent handling, and replay/optimisation primitives.
-- `empirical/scripts/`: data-fetching, pre-state construction, replay,
-  comparison, optimisation, and summarisation scripts.
-- `empirical/rust/tx_prebook_replay/`: Rust transaction-prebook replay used for
-  large replay workloads.
-- `configs/empirical/`: example pipeline configuration.
-- `data/config.share.example`: template for local RPC/share credentials.
-- `tests/`: unit, rebuild, and smoke tests for the routing and empirical code.
-
-## Not Included
-
-The full experimental run uses large XRPL metadata, account-state snapshots,
-transaction-prebook replay outputs, and pair-level intermediate files. These
-files are omitted because they are large generated artifacts. The repository
-provides the scripts and configuration path for regenerating them.
-
-The paper PDF is submitted separately through the review system.
-
-## Environment
-
-Create the Python environment:
+## 0. Environment
 
 ```bash
 conda env create -f environment.yml
@@ -39,38 +8,177 @@ conda activate xrpl-amm-clob
 pip install -e .
 ```
 
-The Rust replay helper requires a local Rust toolchain:
-
 ```bash
 cd empirical/rust/tx_prebook_replay
 cargo build --release
+cd ../../..
 ```
 
-## Quick Checks
-
-Run lightweight checks that do not require the full XRPL dataset:
+## 1. Quick Check
 
 ```bash
-pytest tests/ci/test_smoke_imports.py
-pytest tests/rebuild/test_core_kernel.py tests/rebuild/test_amm_rebuild.py
+PYTHONPATH=src pytest \
+  tests/ci/test_smoke_imports.py \
+  tests/rebuild/test_core_kernel.py \
+  tests/rebuild/test_amm_rebuild.py
 ```
 
-## Full Reproduction Path
+## 2. Configure a Run
 
-The full workflow is data-intensive. At a high level:
+```bash
+PAIR=rlusd_xrp
+BASE_LABEL=RLUSD
+ISSUER=rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De
+CURRENCY_HEX=524C555344000000000000000000000000000000
+LEDGER_START=100725835
+LEDGER_END=101035981
+WINDOW=ledger_${LEDGER_START}_${LEDGER_END}
+RPC=https://s2.ripple.com:51234/
+JOBS=8
+```
 
-1. Configure local XRPL/RPC access from `data/config.share.example`.
-2. Fetch transaction metadata and ledger-state snapshots for the target ledger
-   window.
-3. Construct direct XRP-token targets and transaction-level pre-state inputs.
-4. Replay transaction prebooks with the Rust replay helper.
-5. Run baseline replay validation against XRPL metadata.
-6. Run same-fill AMM/CLOB allocation optimisation.
-7. Summarise pair-level and transaction-level results.
+```bash
+mkdir -p artifacts/lists/${PAIR}/${WINDOW}
+seq ${LEDGER_START} ${LEDGER_END} > artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+```
 
-See `docs/reproduction.md` for the command-level outline.
+For Delta Sharing exports:
 
-## Anonymity and Local Data
+```bash
+cp data/config.share.example data/config.share
+chmod 600 data/config.share
+# Edit data/config.share before running export commands.
+```
 
-Do not commit local credentials, generated data, or machine-specific paths. The
-`.gitignore` excludes common generated artifacts and local credential files.
+## 3. Fetch and Build Inputs
+
+```bash
+python empirical/scripts/empirical_fetch_full_ledger_metadata.py \
+  --ledger-list ${LEDGER_LIST} \
+  --outdir artifacts/metadata/${PAIR}/${WINDOW} \
+  --rpc ${RPC} \
+  --workers ${JOBS}
+```
+
+```bash
+python empirical/scripts/empirical_export_window.py \
+  --pair ${PAIR} \
+  --ledger-start ${LEDGER_START} \
+  --ledger-end ${LEDGER_END} \
+  --base-currency ${CURRENCY_HEX} \
+  --base-issuer ${ISSUER} \
+  --counter-currency XRP \
+  --counter-issuer "" \
+  --output-dir artifacts/exports/${PAIR}/${WINDOW}
+```
+
+```bash
+python empirical/scripts/empirical_build_full_tx_and_prebook_ledgers.py \
+  --base-dir artifacts/exports/${PAIR} \
+  --date-start 2025-12-08 \
+  --date-end 2025-12-22 \
+  --outdir artifacts/inputs/${PAIR}/${WINDOW}
+```
+
+```bash
+python empirical/scripts/empirical_build_strict_direct_target_tx.py \
+  --tx-sequence artifacts/inputs/${PAIR}/${WINDOW}/full_tx_sequence.parquet \
+  --metadata-ndjson artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
+  --base-currency ${CURRENCY_HEX} \
+  --base-label ${BASE_LABEL} \
+  --counter-currency XRP \
+  --counter-label XRP \
+  --outdir artifacts/targets/${PAIR}/${WINDOW}/strict_direct
+```
+
+```bash
+python empirical/scripts/empirical_fetch_prebook_from_ledger_data.py \
+  --rpc ${RPC} \
+  --ledger-list artifacts/inputs/${PAIR}/${WINDOW}/prebook_ledgers_full.txt \
+  --outdir artifacts/prebook/${PAIR}/${WINDOW} \
+  --issuer ${ISSUER} \
+  --currency-hex ${CURRENCY_HEX} \
+  --output-prefix book \
+  --workers ${JOBS}
+```
+
+## 4. Replay Prebook
+
+```bash
+python empirical/scripts/empirical_replay_tx_prebook_rust.py \
+  --ledger-start ${LEDGER_START} \
+  --ledger-end ${LEDGER_END} \
+  --book-gets-xrp artifacts/prebook/${PAIR}/${WINDOW}/book_getsXRP.ndjson \
+  --book-gets-rusd artifacts/prebook/${PAIR}/${WINDOW}/book_getsrUSD.ndjson \
+  --metadata-ndjson artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
+  --target-tx-file artifacts/targets/${PAIR}/${WINDOW}/strict_direct/required_tx.csv \
+  --amm-swaps artifacts/exports/${PAIR}/${WINDOW}/amm_swaps \
+  --clob-legs artifacts/exports/${PAIR}/${WINDOW}/clob_legs \
+  --output-dir artifacts/replay/${PAIR}/${WINDOW}
+```
+
+## 5. Assemble Dataset Root
+
+```bash
+DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+mkdir -p ${DATASET}
+
+cp artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
+  ${DATASET}/tx_metadata_full_merged.ndjson
+cp artifacts/replay/${PAIR}/${WINDOW}/tx_prebook_replay_snapshots.ndjson \
+  ${DATASET}/tx_prebook_snapshots.ndjson
+cp artifacts/targets/${PAIR}/${WINDOW}/strict_direct/required_tx.csv \
+  ${DATASET}/required_tx.csv
+cp ${LEDGER_LIST} ${DATASET}/ledger_list.txt
+cp -R artifacts/exports/${PAIR}/${WINDOW}/amm_swaps \
+  ${DATASET}/amm_swaps_two_week.parquet
+cp -R artifacts/exports/${PAIR}/${WINDOW}/amm_fees \
+  ${DATASET}/amm_fees_two_week.parquet
+```
+
+```bash
+cat > ${DATASET}/dataset_manifest.json <<EOF
+{
+  "pair": "${PAIR}",
+  "window": "${WINDOW}",
+  "base_currency": "${CURRENCY_HEX}",
+  "base_label": "${BASE_LABEL}",
+  "counter_currency": "XRP",
+  "counter_label": "XRP"
+}
+EOF
+```
+
+If the target set includes `OfferCreate`, also place
+`offer_tick_sizes_at_ledger_*.json` snapshots in `${DATASET}`.
+
+## 6. Baseline Replay Check
+
+```bash
+python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
+  --dataset-root ${DATASET} \
+  --output-dir artifacts/compare/${PAIR}/${WINDOW}/isolated_fit \
+  --aggregate-only \
+  --top-relative-errors 50
+```
+
+## 7. Same-Fill Optimisation
+
+```bash
+python empirical/scripts/empirical_run_best_price_fixed_output_pairs.py \
+  --pair ${PAIR}=${DATASET}/dataset_manifest.json \
+  --output-root artifacts/optimisation/${WINDOW} \
+  --pair-workers 1 \
+  --jobs-per-pair ${JOBS} \
+  --layer1-measurement-policy both
+```
+
+```bash
+python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
+  --batch-root artifacts/optimisation/${WINDOW} \
+  --output-md artifacts/optimisation/${WINDOW}/summary.md \
+  --output-json artifacts/optimisation/${WINDOW}/summary.json
+```
+
+Generated data stays under `artifacts/` and is ignored by Git.

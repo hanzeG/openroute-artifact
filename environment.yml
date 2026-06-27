@@ -8,6 +8,10 @@ dependencies:
   - matplotlib
   - numpy
   - pandas
+  - pyarrow
+  - pyspark
+  - requests
+  - scipy
   - jupyterlab
   - seaborn
   - pytest
@@ -20,3 +24,4 @@ dependencies:
   - black
   - pip:
       - -e .
+      - delta-sharing
