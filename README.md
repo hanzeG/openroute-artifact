@@ -35,13 +35,14 @@ cp data/config.share.example data/config.share
 chmod 600 data/config.share
 ```
 
-The Delta Sharing export steps require an authorised Ripple UBRI Delta Sharing
-profile. The repository does not include the raw Delta Sharing tables or a real
-credential profile. It includes the lightweight reproducibility metadata instead:
-`configs/empirical/paper_pairs.json` fixes the ten token pairs and ledger window,
-and the commands below spell out the exact share, schema, and table names used
-by the paper. Replace the placeholders in `data/config.share` with an authorised
-profile before running the export steps.
+The repository includes the lightweight Delta-derived metadata used to define
+the experiment: `data/token_selection/target_window_rankings/` contains the
+pair-selection ranking tables, and
+`configs/empirical/paper_pairs.resolved.json` contains the resolved
+currency/issuer identifiers for the ten paper pairs. A Delta Sharing credential
+is only needed if you want to regenerate these files from the Ripple UBRI Delta
+Sharing tables or rerun the raw AMM/CLOB/fee row export in Section 4.1. The raw
+Delta Sharing tables and credential profile are not included in this repository.
 
 ## 2. Quick Check
 
@@ -49,9 +50,13 @@ profile before running the export steps.
 PYTHONPATH=src pytest tests
 ```
 
-## 3. Resolve the Ten Paper Pairs
+## 3. Pair Selection Inputs
 
-This resolves token currency/issuer identifiers from the Delta Sharing AMM table.
+The ten paper pairs are already resolved in
+`configs/empirical/paper_pairs.resolved.json`. The source ranking tables used to
+select them are included under `data/token_selection/target_window_rankings/`.
+
+To regenerate the resolved pair file from Delta Sharing, run:
 
 ```bash
 python empirical/scripts/empirical_resolve_paper_pairs.py \
@@ -60,13 +65,13 @@ python empirical/scripts/empirical_resolve_paper_pairs.py \
   --share ripple-ubri-share \
   --schema ripplex \
   --table-amm fact_amm_swaps \
-  --output artifacts/config/paper_pairs.resolved.json
+  --output configs/empirical/paper_pairs.resolved.json
 ```
 
 Expected output:
 
 ```text
-artifacts/config/paper_pairs.resolved.json
+configs/empirical/paper_pairs.resolved.json
 ```
 
 ## 4. Build Dataset Roots
@@ -85,7 +90,7 @@ JOBS=${XRPL_FETCH_WORKERS:-8}
 load_pair() {
   PAIR="$1"
   eval "$(python empirical/scripts/empirical_pair_env.py \
-    --pair-config artifacts/config/paper_pairs.resolved.json \
+    --pair-config configs/empirical/paper_pairs.resolved.json \
     --pair "${PAIR}")"
 
   export EXPORT_DIR=artifacts/exports/${PAIR}/${WINDOW}
@@ -267,7 +272,7 @@ for PAIR in "${PAIR_LIST[@]}"; do
   load_pair "${PAIR}"
 
   python empirical/scripts/empirical_assemble_dataset_root.py \
-    --pair-config artifacts/config/paper_pairs.resolved.json \
+    --pair-config configs/empirical/paper_pairs.resolved.json \
     --pair ${PAIR} \
     --metadata-ndjson ${METADATA_DIR}/tx_metadata_full_merged.ndjson \
     --tx-prebook-snapshots ${REPLAY_DIR}/tx_prebook_replay_snapshots.ndjson \
@@ -400,7 +405,7 @@ These commands produce compact JSON/Markdown summaries used to check the paper t
 
 ```bash
 python empirical/scripts/empirical_summarize_pair_setup.py \
-  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --pair-config configs/empirical/paper_pairs.resolved.json \
   --output-dir artifacts/results/pair_setup
 ```
 
@@ -408,7 +413,7 @@ python empirical/scripts/empirical_summarize_pair_setup.py \
 
 ```bash
 python empirical/scripts/empirical_summarize_baseline_fit_pairs.py \
-  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --pair-config configs/empirical/paper_pairs.resolved.json \
   --compare-root artifacts/compare \
   --output-dir artifacts/results/baseline_fit
 ```
@@ -427,7 +432,7 @@ python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
 ```bash
 python empirical/scripts/empirical_summarize_paper_data.py \
   --results-root artifacts/optimisation/${WINDOW} \
-  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --pair-config configs/empirical/paper_pairs.resolved.json \
   --fit-input-root artifacts/fit_inputs \
   --output-dir artifacts/results/paper_data
 ```

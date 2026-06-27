@@ -1,0 +1,128 @@
+{
+  "ledger_start": 100725835,
+  "ledger_end": 101035981,
+  "counter_currency": "XRP",
+  "counter_issuer": "",
+  "pairs": [
+    {
+      "pair": "rlusd_xrp",
+      "pair_label": "RLUSD/XRP",
+      "base_label": "RLUSD",
+      "base_currency": "524C555344000000000000000000000000000000",
+      "base_issuer": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "solo_xrp",
+      "pair_label": "SOLO/XRP",
+      "base_label": "SOLO",
+      "base_currency": "534F4C4F00000000000000000000000000000000",
+      "base_issuer": "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "666_xrp",
+      "pair_label": "666/XRP",
+      "base_label": "666",
+      "base_currency": "666",
+      "base_issuer": "rhvf9fe6PP3GC8Bku2Ug7iQPjPDxYZfrxN",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "xah_xrp",
+      "pair_label": "XAH/XRP",
+      "base_label": "XAH",
+      "base_currency": "XAH",
+      "base_issuer": "rswh1fvyLqHizBS2awu1vs6QcmwTBd9qiv",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "core_xrp",
+      "pair_label": "CORE/XRP",
+      "base_label": "CORE",
+      "base_currency": "434F524500000000000000000000000000000000",
+      "base_issuer": "rcoreNywaoz2ZCQ8Lg2EbSLnGuRBmun6D",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "fuzzy_xrp",
+      "pair_label": "FUZZY/XRP",
+      "base_label": "FUZZY",
+      "base_currency": "46555A5A59000000000000000000000000000000",
+      "base_issuer": "rhCAT4hRdi2Y9puNdkpMzxrdKa5wkppR62",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "cny_xrp",
+      "pair_label": "CNY/XRP",
+      "base_label": "CNY",
+      "base_currency": "CNY",
+      "base_issuer": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "usdc_xrp",
+      "pair_label": "USDC/XRP",
+      "base_label": "USDC",
+      "base_currency": "5553444300000000000000000000000000000000",
+      "base_issuer": "rGm7WCVp9gb4jZHWTEtGUr4dd74z2XuWhE",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "589_xrp",
+      "pair_label": "589/XRP",
+      "base_label": "589",
+      "base_currency": "589",
+      "base_issuer": "rfcasq9uRbvwcmLFvc4ti3j8Qt1CYCGgHz",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    },
+    {
+      "pair": "mallard_xrp",
+      "pair_label": "MALLARD/XRP",
+      "base_label": "MALLARD",
+      "base_currency": "4D414C4C41524400000000000000000000000000",
+      "base_issuer": "raaoPU9crbLGEFCMyh8moNH4gipsHJY3wN",
+      "counter_currency": "XRP",
+      "counter_issuer": "",
+      "ledger_start": 100725835,
+      "ledger_end": 101035981,
+      "window": "ledger_100725835_101035981"
+    }
+  ]
+}

@@ -34,3 +34,5 @@ data/output_csv/
 data/config.share
 data/*.share
 !data/*.share.example
+!data/token_selection/
+!data/token_selection/**
