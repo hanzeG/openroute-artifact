@@ -35,6 +35,14 @@ cp data/config.share.example data/config.share
 chmod 600 data/config.share
 ```
 
+The Delta Sharing export steps require an authorised Ripple UBRI Delta Sharing
+profile. The repository does not include the raw Delta Sharing tables or a real
+credential profile. It includes the lightweight reproducibility metadata instead:
+`configs/empirical/paper_pairs.json` fixes the ten token pairs and ledger window,
+and the commands below spell out the exact share, schema, and table names used
+by the paper. Replace the placeholders in `data/config.share` with an authorised
+profile before running the export steps.
+
 ## 2. Quick Check
 
 ```bash
