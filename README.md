@@ -28,21 +28,12 @@ source .env
 set +a
 ```
 
-Copy the Delta Sharing profile into `data/config.share`:
-
-```bash
-cp data/config.share.example data/config.share
-chmod 600 data/config.share
-```
-
-The repository includes the lightweight Delta-derived metadata used to define
-the experiment: `data/token_selection/target_window_rankings/` contains the
-pair-selection ranking tables, and
-`configs/empirical/paper_pairs.resolved.json` contains the resolved
-currency/issuer identifiers for the ten paper pairs. A Delta Sharing credential
-is only needed if you want to regenerate these files from the Ripple UBRI Delta
-Sharing tables or rerun the raw AMM/CLOB/fee row export in Section 4.1. The raw
-Delta Sharing tables and credential profile are not included in this repository.
+The repository includes the Delta Sharing query results needed by the paper:
+`data/delta_exports/` contains the bundled AMM, CLOB, and AMM-fee parquet rows,
+`data/token_selection/target_window_rankings/` contains the pair-selection
+ranking tables, and `configs/empirical/paper_pairs.resolved.json` contains the
+resolved currency/issuer identifiers for the ten paper pairs. A Delta Sharing
+credential is only needed to regenerate these bundled files.
 
 ## 2. Quick Check
 
@@ -107,29 +98,19 @@ load_pair() {
 }
 ```
 
-### 4.1 Export Delta Sharing Rows
+### 4.1 Use Bundled Delta Sharing Rows
 
-Exports AMM swaps, CLOB legs, and AMM fees for each pair/window.
+Copies the bundled Delta Sharing query results into the working artifact tree.
 
 ```bash
 for PAIR in "${PAIR_LIST[@]}"; do
   load_pair "${PAIR}"
 
-  python empirical/scripts/empirical_export_window.py \
-    --pair ${PAIR} \
-    --share-profile data/config.share \
-    --share ripple-ubri-share \
-    --schema ripplex \
-    --table-amm fact_amm_swaps \
-    --table-clob offers_fact_tx \
-    --table-fees fact_amm_fees \
-    --ledger-start ${LEDGER_START} \
-    --ledger-end ${LEDGER_END} \
-    --base-currency ${CURRENCY_HEX} \
-    --base-issuer ${ISSUER} \
-    --counter-currency XRP \
-    --counter-issuer "" \
-    --output-dir ${EXPORT_DIR}
+  rm -rf "${EXPORT_DIR}"
+  mkdir -p "${EXPORT_DIR}"
+  cp -R "data/delta_exports/${PAIR}/${WINDOW}/amm_swaps" "${EXPORT_DIR}/amm_swaps"
+  cp -R "data/delta_exports/${PAIR}/${WINDOW}/clob_legs" "${EXPORT_DIR}/clob_legs"
+  cp -R "data/delta_exports/shared/${WINDOW}/amm_fees" "${EXPORT_DIR}/amm_fees"
 done
 ```
 
@@ -140,6 +121,10 @@ artifacts/exports/<pair>/<window>/amm_swaps
 artifacts/exports/<pair>/<window>/clob_legs
 artifacts/exports/<pair>/<window>/amm_fees
 ```
+
+To regenerate these bundled rows from Delta Sharing, copy an authorised profile
+to `data/config.share` and run `empirical/scripts/empirical_export_window.py`
+with the table names `fact_amm_swaps`, `offers_fact_tx`, and `fact_amm_fees`.
 
 ### 4.2 Build Transaction Lists and Fetch Metadata
 

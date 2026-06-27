@@ -36,3 +36,5 @@ data/*.share
 !data/*.share.example
 !data/token_selection/
 !data/token_selection/**
+!data/delta_exports/
+!data/delta_exports/**

@@ -1,0 +1,108 @@
+{
+  "window": "ledger_100725835_101035981",
+  "description": "Bundled Delta Sharing query results required to reproduce the paper without Delta Sharing credentials.",
+  "layout": {
+    "pair_specific": "data/delta_exports/<pair>/<window>/{amm_swaps,clob_legs}",
+    "shared_fees": "data/delta_exports/shared/<window>/amm_fees"
+  },
+  "notes": [
+    "CLOB rows keep Delta Sharing row columns and include ledger_index/transaction_index ordering columns required by the reproduction pipeline.",
+    "AMM fee rows are shared by ledger window because the fee export is filtered by ledger range, not token pair."
+  ],
+  "pairs": {
+    "rlusd_xrp": {
+      "amm_swaps_files": 1,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 161491,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 699168,
+      "clob_legs_bytes": 17999026,
+      "uses_shared_amm_fees": true
+    },
+    "solo_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 8781,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 2557289,
+      "clob_legs_bytes": 1082487,
+      "uses_shared_amm_fees": true
+    },
+    "666_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 84397,
+      "clob_index_source": "joined_public_tx_order_cache",
+      "amm_swaps_bytes": 41168769,
+      "clob_legs_bytes": 10580568,
+      "uses_shared_amm_fees": true
+    },
+    "xah_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 13078,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 2430545,
+      "clob_legs_bytes": 1379994,
+      "uses_shared_amm_fees": true
+    },
+    "core_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 9306,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 1886909,
+      "clob_legs_bytes": 1043911,
+      "uses_shared_amm_fees": true
+    },
+    "fuzzy_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 1107,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 3037232,
+      "clob_legs_bytes": 191124,
+      "uses_shared_amm_fees": true
+    },
+    "cny_xrp": {
+      "amm_swaps_files": 6,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 3326,
+      "clob_index_source": "joined_public_tx_order_cache",
+      "amm_swaps_bytes": 859176,
+      "clob_legs_bytes": 425054,
+      "uses_shared_amm_fees": true
+    },
+    "usdc_xrp": {
+      "amm_swaps_files": 6,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 19777,
+      "clob_index_source": "joined_public_tx_order_cache",
+      "amm_swaps_bytes": 359466,
+      "clob_legs_bytes": 2515415,
+      "uses_shared_amm_fees": true
+    },
+    "589_xrp": {
+      "amm_swaps_files": 28,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 24648,
+      "clob_index_source": "existing_indexed_delta_rows",
+      "amm_swaps_bytes": 1136517,
+      "clob_legs_bytes": 3187765,
+      "uses_shared_amm_fees": true
+    },
+    "mallard_xrp": {
+      "amm_swaps_files": 6,
+      "clob_legs_files": 1,
+      "clob_legs_rows": 20473,
+      "clob_index_source": "joined_public_tx_order_cache",
+      "amm_swaps_bytes": 649380,
+      "clob_legs_bytes": 2599785,
+      "uses_shared_amm_fees": true
+    }
+  },
+  "shared_amm_fees": {
+    "files": 7,
+    "bytes": 301039099
+  }
+}
