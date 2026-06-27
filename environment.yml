@@ -1,0 +1,22 @@
+name: xrpl-amm-clob
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11.*
+  - pip
+  - matplotlib
+  - numpy
+  - pandas
+  - jupyterlab
+  - seaborn
+  - pytest
+  - pytest-cov
+  - pytest-xdist
+  - pre-commit
+  - hypothesis
+  - mypy
+  - ruff
+  - black
+  - pip:
+      - -e .

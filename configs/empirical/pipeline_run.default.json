@@ -1,0 +1,11 @@
+{
+  "pair": "rlusd_xrp",
+  "ledger_start": null,
+  "ledger_end": null,
+  "share_profile": "data/config.share",
+  "share": "ripple-ubri-share",
+  "schema": "ripplex",
+  "table_amm": "fact_amm_swaps",
+  "table_clob": "offers_fact_tx",
+  "table_fees": "fact_amm_fees"
+}

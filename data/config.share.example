@@ -1,0 +1,7 @@
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "https://<delta-sharing-endpoint>/delta-sharing/",
+  "bearerToken": "<PASTE_YOUR_TOKEN_HERE>",
+  "expirationTime": "<ISO8601_OPTIONAL>",
+  "comment": "Copy to data/config.share locally. Do not commit real token."
+}
