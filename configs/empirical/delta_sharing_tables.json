@@ -1,0 +1,15 @@
+{
+  "share_profile": "data/config.share",
+  "share": "ripple-ubri-share",
+  "schema": "ripplex",
+  "tables": {
+    "amm_swaps": "fact_amm_swaps",
+    "clob_legs": "offers_fact_tx",
+    "amm_fees": "fact_amm_fees"
+  },
+  "local_outputs": {
+    "amm_swaps": "artifacts/exports/${PAIR}/${WINDOW}/amm_swaps",
+    "clob_legs": "artifacts/exports/${PAIR}/${WINDOW}/clob_legs",
+    "amm_fees": "artifacts/exports/${PAIR}/${WINDOW}/amm_fees"
+  }
+}

@@ -35,6 +35,12 @@ LEDGER_END=101035981
 WINDOW=ledger_${LEDGER_START}_${LEDGER_END}
 RPC=https://s2.ripple.com:51234/
 JOBS=8
+SHARE_PROFILE=data/config.share
+SHARE=ripple-ubri-share
+SCHEMA=ripplex
+TABLE_AMM=fact_amm_swaps
+TABLE_CLOB=offers_fact_tx
+TABLE_FEES=fact_amm_fees
 ```
 
 ```bash
@@ -43,12 +49,11 @@ seq ${LEDGER_START} ${LEDGER_END} > artifacts/lists/${PAIR}/${WINDOW}/ledger_lis
 LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
 ```
 
-For Delta Sharing exports:
-
 ```bash
 cp data/config.share.example data/config.share
 chmod 600 data/config.share
-# Edit data/config.share before running export commands.
+# Edit data/config.share before running Delta Sharing export commands.
+cat configs/empirical/delta_sharing_tables.json
 ```
 
 ## 3. Fetch and Build Inputs
@@ -64,6 +69,12 @@ python empirical/scripts/empirical_fetch_full_ledger_metadata.py \
 ```bash
 python empirical/scripts/empirical_export_window.py \
   --pair ${PAIR} \
+  --share-profile ${SHARE_PROFILE} \
+  --share ${SHARE} \
+  --schema ${SCHEMA} \
+  --table-amm ${TABLE_AMM} \
+  --table-clob ${TABLE_CLOB} \
+  --table-fees ${TABLE_FEES} \
   --ledger-start ${LEDGER_START} \
   --ledger-end ${LEDGER_END} \
   --base-currency ${CURRENCY_HEX} \
