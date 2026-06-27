@@ -40,7 +40,6 @@ chmod 600 data/config.share
 ```bash
 PYTHONPATH=src pytest \
   tests/ci/test_smoke_imports.py \
-  tests/ci/test_empirical_dry_run.py \
   tests/rebuild/test_core_kernel.py \
   tests/rebuild/test_amm_rebuild.py
 ```
