@@ -1,6 +1,6 @@
 # OpenRoute Artifact
 
-Commands below reproduce the empirical inputs, baseline replay checks, same-fill optimisation outputs, and derived result summaries.
+Run the commands below in order to reproduce the empirical inputs, baseline replay checks, same-fill optimisation outputs, and paper-data summaries.
 
 ## 0. Setup
 
@@ -40,6 +40,8 @@ PYTHONPATH=src pytest \
 
 ## 2. Resolve the Ten Paper Pairs
 
+This resolves token currency/issuer identifiers from the Delta Sharing AMM table.
+
 ```bash
 python empirical/scripts/empirical_resolve_paper_pairs.py \
   --pair-config configs/empirical/paper_pairs.json \
@@ -50,33 +52,52 @@ python empirical/scripts/empirical_resolve_paper_pairs.py \
   --output artifacts/config/paper_pairs.resolved.json
 ```
 
+Expected output:
+
+```text
+artifacts/config/paper_pairs.resolved.json
+```
+
 ## 3. Build Dataset Roots
+
+The commands in this section create one canonical dataset root per pair under `artifacts/fit_inputs`.
+
+### 3.0 Shared Shell Context
+
+Run this once per shell session before the remaining commands.
 
 ```bash
 PAIR_LIST=(rlusd_xrp solo_xrp 666_xrp xah_xrp core_xrp fuzzy_xrp cny_xrp usdc_xrp 589_xrp mallard_xrp)
 RPC=${XRPL_RIPPLE_S2_RPC}
 JOBS=${XRPL_FETCH_WORKERS:-8}
-```
 
-Run the following loop. It creates one canonical dataset root per pair under `artifacts/fit_inputs`.
-
-```bash
-for PAIR in "${PAIR_LIST[@]}"; do
+load_pair() {
+  PAIR="$1"
   eval "$(python empirical/scripts/empirical_pair_env.py \
     --pair-config artifacts/config/paper_pairs.resolved.json \
     --pair "${PAIR}")"
 
-  EXPORT_DIR=artifacts/exports/${PAIR}/${WINDOW}
-  INPUT_DIR=artifacts/inputs/${PAIR}/${WINDOW}
-  METADATA_DIR=artifacts/metadata/${PAIR}/${WINDOW}
-  TARGET_DIR=artifacts/targets/${PAIR}/${WINDOW}/strict_direct
-  PREBOOK_DIR=artifacts/prebook/${PAIR}/${WINDOW}
-  REPLAY_DIR=artifacts/replay/${PAIR}/${WINDOW}
-  DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+  export EXPORT_DIR=artifacts/exports/${PAIR}/${WINDOW}
+  export INPUT_DIR=artifacts/inputs/${PAIR}/${WINDOW}
+  export METADATA_DIR=artifacts/metadata/${PAIR}/${WINDOW}
+  export TARGET_DIR=artifacts/targets/${PAIR}/${WINDOW}/strict_direct
+  export PREBOOK_DIR=artifacts/prebook/${PAIR}/${WINDOW}
+  export REPLAY_DIR=artifacts/replay/${PAIR}/${WINDOW}
+  export DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+  export LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
 
   mkdir -p artifacts/lists/${PAIR}/${WINDOW}
-  seq ${LEDGER_START} ${LEDGER_END} > artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
-  LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+  seq ${LEDGER_START} ${LEDGER_END} > ${LEDGER_LIST}
+}
+```
+
+### 3.1 Export Delta Sharing Rows
+
+Exports AMM swaps, CLOB legs, and AMM fees for each pair/window.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_export_window.py \
     --pair ${PAIR} \
@@ -93,6 +114,24 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --counter-currency XRP \
     --counter-issuer "" \
     --output-dir ${EXPORT_DIR}
+done
+```
+
+Expected outputs per pair:
+
+```text
+artifacts/exports/<pair>/<window>/amm_swaps
+artifacts/exports/<pair>/<window>/clob_legs
+artifacts/exports/<pair>/<window>/amm_fees
+```
+
+### 3.2 Build Transaction Lists and Fetch Metadata
+
+Builds the pair-level transaction sequence and fetches full ledger metadata for the window.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_build_window_tx_and_prebook_ledgers.py \
     --export-dir ${EXPORT_DIR} \
@@ -103,6 +142,24 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --outdir ${METADATA_DIR} \
     --rpc ${RPC} \
     --workers ${JOBS}
+done
+```
+
+Expected outputs per pair:
+
+```text
+artifacts/inputs/<pair>/<window>/full_tx_sequence.parquet
+artifacts/inputs/<pair>/<window>/prebook_ledgers_full.txt
+artifacts/metadata/<pair>/<window>/tx_metadata_full_merged.ndjson
+```
+
+### 3.3 Select Direct Target Transactions
+
+Filters the exported pair activity to direct single-path target transactions.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_build_strict_direct_target_tx.py \
     --tx-sequence ${INPUT_DIR}/full_tx_sequence.parquet \
@@ -112,6 +169,22 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --counter-currency XRP \
     --counter-label XRP \
     --outdir ${TARGET_DIR}
+done
+```
+
+Expected output per pair:
+
+```text
+artifacts/targets/<pair>/<window>/strict_direct/required_tx.csv
+```
+
+### 3.4 Fetch Prebook and Account-Line Snapshots
+
+Fetches ledger-level book offers and account-line snapshots required for tx-level pre-state replay.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_fetch_prebook_from_ledger_data.py \
     --rpc ${RPC} \
@@ -133,6 +206,26 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --rpc ${RPC} \
     --workers ${JOBS} \
     --rps ${JOBS}
+done
+```
+
+Expected outputs per pair:
+
+```text
+artifacts/prebook/<pair>/<window>/book_getsXRP.ndjson
+artifacts/prebook/<pair>/<window>/book_getsrUSD.ndjson
+artifacts/account_lines/<pair>/<window>/account_lines_snapshots.ndjson
+```
+
+The `book_getsrUSD.ndjson` name is a legacy token-side filename; it is used for all issued-token/XRP pairs.
+
+### 3.5 Replay Tx-Level Prebook State
+
+Replays all preceding transactions in the window to produce the prebook snapshot seen by each target transaction.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_replay_tx_prebook_rust.py \
     --ledger-start ${LEDGER_START} \
@@ -145,6 +238,22 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --amm-swaps ${EXPORT_DIR}/amm_swaps \
     --clob-legs ${EXPORT_DIR}/clob_legs \
     --output-dir ${REPLAY_DIR}
+done
+```
+
+Expected output per pair:
+
+```text
+artifacts/replay/<pair>/<window>/tx_prebook_replay_snapshots.ndjson
+```
+
+### 3.6 Assemble Dataset Roots and Enrich Ledger Fields
+
+Assembles the canonical dataset root and fetches transfer-rate and tick-size inputs used by the replay model.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_assemble_dataset_root.py \
     --pair-config artifacts/config/paper_pairs.resolved.json \
@@ -168,6 +277,22 @@ for PAIR in "${PAIR_LIST[@]}"; do
     --outdir ${DATASET} \
     --rpc ${RPC} \
     --workers ${JOBS}
+done
+```
+
+Expected output per pair:
+
+```text
+artifacts/fit_inputs/<pair>/<window>/strict_direct_targets/two_week_isolated/dataset_manifest.json
+```
+
+### 3.7 Preliminary Replay Fit and Account-Offers Snapshots
+
+The preliminary fit identifies target transactions that need account-offers snapshots for fundedness reconstruction.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
     --dataset-root ${DATASET} \
@@ -193,6 +318,23 @@ for PAIR in "${PAIR_LIST[@]}"; do
     cp artifacts/account_offers/${PAIR}/${WINDOW}/account_offers_ok.ndjson \
       ${DATASET}/account_offers_snapshots.ndjson
   fi
+done
+```
+
+Expected outputs per pair:
+
+```text
+artifacts/compare/<pair>/<window>/preliminary_fit/aggregate.json
+artifacts/account_offers/<pair>/<window>/account_offers_targets.csv
+```
+
+### 3.8 Final Baseline Replay Fit
+
+Runs the final baseline replay check against the completed dataset root.
+
+```bash
+for PAIR in "${PAIR_LIST[@]}"; do
+  load_pair "${PAIR}"
 
   python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
     --dataset-root ${DATASET} \
@@ -203,18 +345,28 @@ for PAIR in "${PAIR_LIST[@]}"; do
 done
 ```
 
+Expected outputs per pair:
+
+```text
+artifacts/compare/<pair>/<window>/final_fit/aggregate.json
+artifacts/compare/<pair>/<window>/final_fit/error_analysis.md
+```
+
 ## 4. Same-Fill Optimisation
+
+Build the optimiser pair arguments from the dataset manifests:
 
 ```bash
 PAIR_ARGS=()
 for PAIR in "${PAIR_LIST[@]}"; do
-  eval "$(python empirical/scripts/empirical_pair_env.py \
-    --pair-config artifacts/config/paper_pairs.resolved.json \
-    --pair "${PAIR}")"
-  DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+  load_pair "${PAIR}"
   PAIR_ARGS+=(--pair "${PAIR_LABEL}=${DATASET}/dataset_manifest.json")
 done
+```
 
+Run the same-fill optimisation for all pairs:
+
+```bash
 python empirical/scripts/empirical_run_best_price_fixed_output_pairs.py \
   "${PAIR_ARGS[@]}" \
   --output-root artifacts/optimisation/${WINDOW} \
@@ -223,29 +375,55 @@ python empirical/scripts/empirical_run_best_price_fixed_output_pairs.py \
   --layer1-measurement-policy both
 ```
 
+Expected output:
+
+```text
+artifacts/optimisation/<window>/<PAIR_LABEL>/results.ndjson
+```
+
 ## 5. Paper Data Summaries
+
+These commands produce compact JSON/Markdown summaries used to check the paper tables, figures, and case studies.
+
+### 5.1 Pair Setup Summary
 
 ```bash
 python empirical/scripts/empirical_summarize_pair_setup.py \
   --pair-config artifacts/config/paper_pairs.resolved.json \
   --output-dir artifacts/results/pair_setup
+```
 
+### 5.2 Baseline Fit Summary
+
+```bash
 python empirical/scripts/empirical_summarize_baseline_fit_pairs.py \
   --pair-config artifacts/config/paper_pairs.resolved.json \
   --compare-root artifacts/compare \
   --output-dir artifacts/results/baseline_fit
+```
 
+### 5.3 Same-Fill Optimisation Summary
+
+```bash
 python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
   --batch-root artifacts/optimisation/${WINDOW} \
   --output-md artifacts/results/same_fill_summary.md \
   --output-json artifacts/results/same_fill_summary.json
+```
 
+### 5.4 Paper Analysis Summary
+
+```bash
 python empirical/scripts/empirical_summarize_paper_data.py \
   --results-root artifacts/optimisation/${WINDOW} \
   --pair-config artifacts/config/paper_pairs.resolved.json \
   --fit-input-root artifacts/fit_inputs \
   --output-dir artifacts/results/paper_data
+```
 
+### 5.5 Case-Study Rows
+
+```bash
 python empirical/scripts/empirical_extract_same_fill_cases.py \
   --results-root artifacts/optimisation/${WINDOW} \
   --tx-hash 60B4071AB9FFDF43C4190DE1C216FD57E366A23859FAFE3DB1364C209CABCC80 \
@@ -254,4 +432,12 @@ python empirical/scripts/empirical_extract_same_fill_cases.py \
   --output-json artifacts/results/case_studies/same_fill_cases.json
 ```
 
-Baseline replay reports are written to `artifacts/compare/*/*/final_fit/error_analysis.md`.
+Expected summary outputs:
+
+```text
+artifacts/results/pair_setup/pair_setup_summary.json
+artifacts/results/baseline_fit/baseline_fit_summary.json
+artifacts/results/same_fill_summary.json
+artifacts/results/paper_data/paper_data_summary.json
+artifacts/results/case_studies/same_fill_cases.json
+```
