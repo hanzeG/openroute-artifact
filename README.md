@@ -5,7 +5,7 @@ Run the commands below in order to reproduce the empirical inputs, baseline repl
 ## 0. Clone
 
 ```bash
-git clone https://github.com/hanzeG/openroute-artifact.git
+git clone <anonymous-artifact-repository-url>
 cd openroute-artifact
 ```
 
