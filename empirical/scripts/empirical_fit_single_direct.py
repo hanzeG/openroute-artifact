@@ -33,7 +33,6 @@ RUSD_HEX = "524C555344000000000000000000000000000000"
 XRP = "XRP"
 TARGET_IOU_CURRENCY = RUSD_HEX
 TARGET_IOU_LABEL = "rUSD"
-CURATED_SAMPLES_PATH = Path("empirical/single_direct/curated_samples.txt")
 DEFAULT_ROOT = Path(".tmp/rolling_two_week_top100_direct_latest")
 
 FIT_BUCKET_STRICT_EXACT = "strict_exact_match"
@@ -84,8 +83,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--samples-file",
-        default=str(CURATED_SAMPLES_PATH),
-        help="Plain-text file of tx hashes to replay.",
+        default=None,
+        help="Optional plain-text file of tx hashes to replay.",
     )
     parser.add_argument(
         "--tx-hash",
@@ -1417,12 +1416,7 @@ def _load_sample_hashes(args: argparse.Namespace) -> list[str]:
 
     add_all(args.tx_hash or [])
 
-    should_load_samples_file = bool(args.samples_file)
-    if args.tx_hash and str(args.samples_file) == str(CURATED_SAMPLES_PATH):
-        should_load_samples_file = False
-    if args.target_tx_file and str(args.samples_file) == str(CURATED_SAMPLES_PATH):
-        should_load_samples_file = False
-    if should_load_samples_file:
+    if args.samples_file:
         samples_file = Path(args.samples_file)
         if samples_file.exists():
             add_all(samples_file.read_text(encoding="utf-8").splitlines())

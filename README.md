@@ -38,10 +38,7 @@ chmod 600 data/config.share
 ## 2. Quick Check
 
 ```bash
-PYTHONPATH=src pytest \
-  tests/ci/test_smoke_imports.py \
-  tests/rebuild/test_core_kernel.py \
-  tests/rebuild/test_amm_rebuild.py
+PYTHONPATH=src pytest tests
 ```
 
 ## 3. Resolve the Ten Paper Pairs
