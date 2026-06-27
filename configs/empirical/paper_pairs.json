@@ -1,0 +1,18 @@
+{
+  "ledger_start": 100725835,
+  "ledger_end": 101035981,
+  "counter_currency": "XRP",
+  "counter_issuer": "",
+  "pairs": [
+    {"pair": "rlusd_xrp", "base_label": "RLUSD"},
+    {"pair": "solo_xrp", "base_label": "SOLO"},
+    {"pair": "666_xrp", "base_label": "666"},
+    {"pair": "xah_xrp", "base_label": "XAH"},
+    {"pair": "core_xrp", "base_label": "CORE"},
+    {"pair": "fuzzy_xrp", "base_label": "FUZZY"},
+    {"pair": "cny_xrp", "base_label": "CNY"},
+    {"pair": "usdc_xrp", "base_label": "USDC"},
+    {"pair": "589_xrp", "base_label": "589"},
+    {"pair": "mallard_xrp", "base_label": "MALLARD"}
+  ]
+}

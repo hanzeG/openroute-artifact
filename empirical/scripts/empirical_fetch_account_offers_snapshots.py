@@ -15,8 +15,19 @@ import requests
 
 
 def _default_rpc() -> str:
-    value = os.environ.get("XRPL_QN_RPC")
-    return str(value or "")
+    for key in (
+        "XRPL_RIPPLE_S2_RPC",
+        "XRPL_RIPPLE_S1_RPC",
+        "XRPL_CLUSTER_RPC",
+        "XRPL_EXTRA_RPC_1",
+        "XRPL_EXTRA_RPC_2",
+        "XRPL_EXTRA_RPC_3",
+        "XRPL_EXTRA_RPC_4",
+    ):
+        value = os.environ.get(key)
+        if value:
+            return str(value)
+    return ""
 
 
 class _GlobalRateLimiter:
@@ -100,7 +111,7 @@ def _load_done_keys(path: Path) -> set[tuple[int, str]]:
 def main() -> None:
     args = _parse_args()
     if not args.rpc:
-        raise RuntimeError("missing --rpc and XRPL_QN_RPC is not set")
+        raise RuntimeError("missing --rpc and no XRPL RPC endpoint found in environment")
 
     input_csv = Path(args.input_csv)
     outdir = Path(args.outdir)

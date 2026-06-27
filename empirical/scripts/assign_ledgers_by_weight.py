@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
         "--weights",
         required=True,
         nargs="+",
-        help="Bucket weights as name=weight, for example qn=12 s1=18 s2=16 rusty=12 cluster=2",
+        help="Bucket weights as name=weight, for example s1=8 s2=8 cluster=2 extra1=8",
     )
     p.add_argument(
         "--required-tx-csv",

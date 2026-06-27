@@ -12,74 +12,87 @@ else
   exit 1
 fi
 
-: "${XRPL_RUSTYCHAIN_RPC:?XRPL_RUSTYCHAIN_RPC is required}"
-: "${XRPL_CLUSTER_RPC:?XRPL_CLUSTER_RPC is required}"
-: "${XRPL_RIPPLE_S1_RPC:?XRPL_RIPPLE_S1_RPC is required}"
-: "${XRPL_RIPPLE_S2_RPC:?XRPL_RIPPLE_S2_RPC is required}"
 : "${XRPL_RUSD_ISSUER:?XRPL_RUSD_ISSUER is required}"
 : "${XRPL_RUSD_HEX:?XRPL_RUSD_HEX is required}"
 
 ASSIGN_DIR="${1:-artifacts/prebook/rlusd_xrp/assignments}"
 RUN_BASE="${2:-artifacts/prebook/rlusd_xrp/run_$(date +%Y%m%d_%H%M%S)}"
+DEFAULT_WORKERS="${XRPL_PREBOOK_WORKERS:-8}"
+LIMIT="${XRPL_PREBOOK_LIMIT:-100}"
 
-mkdir -p "$RUN_BASE/logs"
-mkdir -p "$RUN_BASE/pids"
+[[ -d "$ASSIGN_DIR" ]] || { echo "assignment dir not found: $ASSIGN_DIR"; exit 1; }
 
-LEDGER_QN="$ASSIGN_DIR/ledgers_qn_pool.txt"
-LEDGER_S1="$ASSIGN_DIR/ledgers_s1.txt"
-LEDGER_S2="$ASSIGN_DIR/ledgers_s2.txt"
-LEDGER_RUSTY="$ASSIGN_DIR/ledgers_rusty.txt"
-LEDGER_CLUSTER="$ASSIGN_DIR/ledgers_cluster.txt"
+ENDPOINT_NAMES=()
+ENDPOINT_RPCS=()
+ENDPOINT_WORKERS=()
 
-for f in "$LEDGER_QN" "$LEDGER_S1" "$LEDGER_S2" "$LEDGER_RUSTY" "$LEDGER_CLUSTER"; do
-  [[ -f "$f" ]] || { echo "missing assignment file: $f"; exit 1; }
+add_endpoint() {
+  local name="$1"
+  local rpc_var="$2"
+  local workers_var="$3"
+  local default_workers="$4"
+  local rpc="${!rpc_var:-}"
+  if [[ -z "$rpc" ]]; then
+    return
+  fi
+  local workers="${!workers_var:-$default_workers}"
+  ENDPOINT_NAMES+=("$name")
+  ENDPOINT_RPCS+=("$rpc")
+  ENDPOINT_WORKERS+=("$workers")
+}
+
+add_endpoint "s1" "XRPL_RIPPLE_S1_RPC" "XRPL_WORKERS_S1" "$DEFAULT_WORKERS"
+add_endpoint "s2" "XRPL_RIPPLE_S2_RPC" "XRPL_WORKERS_S2" "$DEFAULT_WORKERS"
+add_endpoint "cluster" "XRPL_CLUSTER_RPC" "XRPL_WORKERS_CLUSTER" "$DEFAULT_WORKERS"
+
+for i in 1 2 3 4 5 6 7 8; do
+  add_endpoint "extra${i}" "XRPL_EXTRA_RPC_${i}" "XRPL_EXTRA_WORKERS_${i}" "${XRPL_EXTRA_WORKERS:-$DEFAULT_WORKERS}"
 done
 
-OUT_QN="$RUN_BASE/prebook_qn_pool"
-OUT_S1="$RUN_BASE/prebook_s1"
-OUT_S2="$RUN_BASE/prebook_s2"
-OUT_RUSTY="$RUN_BASE/prebook_rusty"
-OUT_CLUSTER="$RUN_BASE/prebook_cluster"
-mkdir -p "$OUT_QN" "$OUT_S1" "$OUT_S2" "$OUT_RUSTY" "$OUT_CLUSTER"
+if [[ ${#ENDPOINT_NAMES[@]} -eq 0 ]]; then
+  echo "missing XRPL RPC endpoint in .env"
+  exit 1
+fi
+
+mkdir -p "$RUN_BASE/logs" "$RUN_BASE/pids"
 
 launch() {
   local name="$1"
-  local cmd="$2"
+  local rpc="$2"
+  local workers="$3"
+  local ledger_file="$ASSIGN_DIR/ledgers_${name}.txt"
+  local out_dir="$RUN_BASE/prebook_${name}"
   local log="$RUN_BASE/logs/${name}.log"
-  echo "[launch] $name"
+
+  [[ -f "$ledger_file" ]] || { echo "missing assignment file: $ledger_file"; exit 1; }
+  mkdir -p "$out_dir"
+  echo "[launch] $name workers=$workers"
   echo "  log: $log"
-  nohup bash -lc "$cmd" >"$log" 2>&1 &
+  nohup bash -lc \
+    "cd '$ROOT_DIR' && python empirical/scripts/empirical_download_clob_offers_from_ledger_list.py --rpc '$rpc' --ledger-list '$ledger_file' --outdir '$out_dir' --issuer '$XRPL_RUSD_ISSUER' --currency-hex '$XRPL_RUSD_HEX' --workers '$workers' --limit '$LIMIT' --timeout 20 --retries 4 --max-consecutive-failures 120" \
+    >"$log" 2>&1 &
   echo $! > "$RUN_BASE/pids/${name}.pid"
 }
 
-launch "quicknode_pool" \
-  "cd '$ROOT_DIR' && bash empirical/scripts/empirical_run_prebook_quicknode_pool.sh '$LEDGER_QN' '$OUT_QN' 12 100"
+{
+  echo "ROOT_DIR=$ROOT_DIR"
+  echo "ASSIGN_DIR=$ASSIGN_DIR"
+  echo "RUN_BASE=$RUN_BASE"
+  echo "DEFAULT_WORKERS=$DEFAULT_WORKERS"
+  echo "LIMIT=$LIMIT"
+} > "$RUN_BASE/RUN_INFO.txt"
 
-launch "ripple_s1" \
-  "cd '$ROOT_DIR' && python empirical/scripts/empirical_download_clob_offers_from_ledger_list.py --rpc '$XRPL_RIPPLE_S1_RPC' --ledger-list '$LEDGER_S1' --outdir '$OUT_S1' --issuer '$XRPL_RUSD_ISSUER' --currency-hex '$XRPL_RUSD_HEX' --workers 18 --limit 100 --timeout 20 --retries 4 --max-consecutive-failures 120"
-
-launch "ripple_s2" \
-  "cd '$ROOT_DIR' && python empirical/scripts/empirical_download_clob_offers_from_ledger_list.py --rpc '$XRPL_RIPPLE_S2_RPC' --ledger-list '$LEDGER_S2' --outdir '$OUT_S2' --issuer '$XRPL_RUSD_ISSUER' --currency-hex '$XRPL_RUSD_HEX' --workers 16 --limit 100 --timeout 20 --retries 4 --max-consecutive-failures 120"
-
-launch "rustychain" \
-  "cd '$ROOT_DIR' && python empirical/scripts/empirical_download_clob_offers_from_ledger_list.py --rpc '$XRPL_RUSTYCHAIN_RPC' --ledger-list '$LEDGER_RUSTY' --outdir '$OUT_RUSTY' --issuer '$XRPL_RUSD_ISSUER' --currency-hex '$XRPL_RUSD_HEX' --workers 12 --limit 100 --timeout 20 --retries 4 --max-consecutive-failures 120"
-
-launch "xrplcluster" \
-  "cd '$ROOT_DIR' && python empirical/scripts/empirical_download_clob_offers_from_ledger_list.py --rpc '$XRPL_CLUSTER_RPC' --ledger-list '$LEDGER_CLUSTER' --outdir '$OUT_CLUSTER' --issuer '$XRPL_RUSD_ISSUER' --currency-hex '$XRPL_RUSD_HEX' --workers 2 --limit 100 --timeout 20 --retries 4 --max-consecutive-failures 120"
-
-cat > "$RUN_BASE/RUN_INFO.txt" <<EOF
-ROOT_DIR=$ROOT_DIR
-ASSIGN_DIR=$ASSIGN_DIR
-RUN_BASE=$RUN_BASE
-OUT_QN=$OUT_QN
-OUT_S1=$OUT_S1
-OUT_S2=$OUT_S2
-OUT_RUSTY=$OUT_RUSTY
-OUT_CLUSTER=$OUT_CLUSTER
-EOF
+for idx in "${!ENDPOINT_NAMES[@]}"; do
+  name="${ENDPOINT_NAMES[$idx]}"
+  launch "$name" "${ENDPOINT_RPCS[$idx]}" "${ENDPOINT_WORKERS[$idx]}"
+  {
+    echo "ENDPOINT_${name}_OUT=$RUN_BASE/prebook_${name}"
+    echo "ENDPOINT_${name}_WORKERS=${ENDPOINT_WORKERS[$idx]}"
+  } >> "$RUN_BASE/RUN_INFO.txt"
+done
 
 echo
-echo "started all jobs"
+echo "started prebook jobs"
 echo "run_base: $RUN_BASE"
 echo "monitor:"
 echo "  bash empirical/scripts/empirical_monitor_prebook_parallel.sh '$RUN_BASE'"

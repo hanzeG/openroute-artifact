@@ -10,102 +10,96 @@ if [[ ! -f ".env" ]]; then
 fi
 
 set -a
+# shellcheck disable=SC1091
 source .env
 set +a
 
-: "${XRPL_QN_RPC:?XRPL_QN_RPC is required}"
-: "${XRPL_RIPPLE_S1_RPC:?XRPL_RIPPLE_S1_RPC is required}"
-: "${XRPL_RIPPLE_S2_RPC:?XRPL_RIPPLE_S2_RPC is required}"
-: "${XRPL_RUSTYCHAIN_RPC:?XRPL_RUSTYCHAIN_RPC is required}"
-: "${XRPL_CLUSTER_RPC:?XRPL_CLUSTER_RPC is required}"
-
 ASSIGN_DIR="${1:?assignment dir is required}"
 RUN_BASE="${2:-.tmp/full_ledger_meta_parallel_$(date +%Y%m%d_%H%M%S)}"
-
-WORKERS_QN="${WORKERS_QN:-1}"
-WORKERS_S1="${WORKERS_S1:-18}"
-WORKERS_S2="${WORKERS_S2:-16}"
-WORKERS_RUSTY="${WORKERS_RUSTY:-12}"
-WORKERS_CLUSTER="${WORKERS_CLUSTER:-2}"
+DEFAULT_WORKERS="${XRPL_FETCH_WORKERS:-8}"
 
 [[ -d "$ASSIGN_DIR" ]] || { echo "assignment dir not found: $ASSIGN_DIR"; exit 1; }
 
-QN_LEDGER="$ASSIGN_DIR/ledgers_qn.txt"
-S1_LEDGER="$ASSIGN_DIR/ledgers_s1.txt"
-S2_LEDGER="$ASSIGN_DIR/ledgers_s2.txt"
-RUSTY_LEDGER="$ASSIGN_DIR/ledgers_rusty.txt"
-CLUSTER_LEDGER="$ASSIGN_DIR/ledgers_cluster.txt"
+ENDPOINT_NAMES=()
+ENDPOINT_RPCS=()
+ENDPOINT_WORKERS=()
 
-QN_REQ="$ASSIGN_DIR/required_tx_qn.csv"
-S1_REQ="$ASSIGN_DIR/required_tx_s1.csv"
-S2_REQ="$ASSIGN_DIR/required_tx_s2.csv"
-RUSTY_REQ="$ASSIGN_DIR/required_tx_rusty.csv"
-CLUSTER_REQ="$ASSIGN_DIR/required_tx_cluster.csv"
+add_endpoint() {
+  local name="$1"
+  local rpc_var="$2"
+  local workers_var="$3"
+  local default_workers="$4"
+  local rpc="${!rpc_var:-}"
+  if [[ -z "$rpc" ]]; then
+    return
+  fi
+  local workers="${!workers_var:-$default_workers}"
+  ENDPOINT_NAMES+=("$name")
+  ENDPOINT_RPCS+=("$rpc")
+  ENDPOINT_WORKERS+=("$workers")
+}
 
-for f in \
-  "$QN_LEDGER" "$S1_LEDGER" "$S2_LEDGER" "$RUSTY_LEDGER" "$CLUSTER_LEDGER" \
-  "$QN_REQ" "$S1_REQ" "$S2_REQ" "$RUSTY_REQ" "$CLUSTER_REQ"; do
-  [[ -f "$f" ]] || { echo "missing assignment file: $f"; exit 1; }
+add_endpoint "s1" "XRPL_RIPPLE_S1_RPC" "XRPL_WORKERS_S1" "$DEFAULT_WORKERS"
+add_endpoint "s2" "XRPL_RIPPLE_S2_RPC" "XRPL_WORKERS_S2" "$DEFAULT_WORKERS"
+add_endpoint "cluster" "XRPL_CLUSTER_RPC" "XRPL_WORKERS_CLUSTER" "$DEFAULT_WORKERS"
+
+for i in 1 2 3 4 5 6 7 8; do
+  add_endpoint "extra${i}" "XRPL_EXTRA_RPC_${i}" "XRPL_EXTRA_WORKERS_${i}" "${XRPL_EXTRA_WORKERS:-$DEFAULT_WORKERS}"
 done
+
+if [[ ${#ENDPOINT_NAMES[@]} -eq 0 ]]; then
+  echo "missing XRPL RPC endpoint in .env"
+  exit 1
+fi
 
 mkdir -p "$RUN_BASE/logs" "$RUN_BASE/pids"
 
-OUT_QN="$RUN_BASE/full_ledger_qn"
-OUT_S1="$RUN_BASE/full_ledger_s1"
-OUT_S2="$RUN_BASE/full_ledger_s2"
-OUT_RUSTY="$RUN_BASE/full_ledger_rusty"
-OUT_CLUSTER="$RUN_BASE/full_ledger_cluster"
-mkdir -p "$OUT_QN" "$OUT_S1" "$OUT_S2" "$OUT_RUSTY" "$OUT_CLUSTER"
-
 launch() {
   local name="$1"
-  local cmd="$2"
+  local rpc="$2"
+  local workers="$3"
+  local ledger_file="$ASSIGN_DIR/ledgers_${name}.txt"
+  local required_tx_file="$ASSIGN_DIR/required_tx_${name}.csv"
+  local out_dir="$RUN_BASE/full_ledger_${name}"
   local log="$RUN_BASE/logs/${name}.log"
-  echo "[launch] $name"
+  local required_arg=""
+
+  [[ -f "$ledger_file" ]] || { echo "missing assignment file: $ledger_file"; exit 1; }
+  if [[ -f "$required_tx_file" ]]; then
+    required_arg="--required-tx-csv '$required_tx_file'"
+  fi
+
+  mkdir -p "$out_dir"
+  echo "[launch] $name workers=$workers"
   echo "  log: $log"
-  nohup bash -lc "$cmd" >"$log" 2>&1 &
+  nohup bash -lc \
+    "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$rpc' --ledger-list '$ledger_file' $required_arg --outdir '$out_dir' --workers '$workers' --timeout 30 --retries 4 --progress-every 25" \
+    >"$log" 2>&1 &
   echo $! > "$RUN_BASE/pids/${name}.pid"
 }
 
-launch "quicknode" \
-  "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$XRPL_QN_RPC' --ledger-list '$QN_LEDGER' --required-tx-csv '$QN_REQ' --outdir '$OUT_QN' --workers '$WORKERS_QN' --timeout 30 --retries 4 --progress-every 25"
+{
+  echo "ROOT_DIR=$ROOT_DIR"
+  echo "ASSIGN_DIR=$ASSIGN_DIR"
+  echo "RUN_BASE=$RUN_BASE"
+  echo "DEFAULT_WORKERS=$DEFAULT_WORKERS"
+} > "$RUN_BASE/RUN_INFO.txt"
 
-launch "ripple_s1" \
-  "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$XRPL_RIPPLE_S1_RPC' --ledger-list '$S1_LEDGER' --required-tx-csv '$S1_REQ' --outdir '$OUT_S1' --workers '$WORKERS_S1' --timeout 30 --retries 4 --progress-every 25"
-
-launch "ripple_s2" \
-  "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$XRPL_RIPPLE_S2_RPC' --ledger-list '$S2_LEDGER' --required-tx-csv '$S2_REQ' --outdir '$OUT_S2' --workers '$WORKERS_S2' --timeout 30 --retries 4 --progress-every 25"
-
-launch "rustychain" \
-  "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$XRPL_RUSTYCHAIN_RPC' --ledger-list '$RUSTY_LEDGER' --required-tx-csv '$RUSTY_REQ' --outdir '$OUT_RUSTY' --workers '$WORKERS_RUSTY' --timeout 30 --retries 4 --progress-every 25"
-
-launch "xrplcluster" \
-  "cd '$ROOT_DIR' && python -u empirical/scripts/empirical_fetch_full_ledger_metadata.py --rpc '$XRPL_CLUSTER_RPC' --ledger-list '$CLUSTER_LEDGER' --required-tx-csv '$CLUSTER_REQ' --outdir '$OUT_CLUSTER' --workers '$WORKERS_CLUSTER' --timeout 30 --retries 4 --progress-every 10"
-
-cat > "$RUN_BASE/RUN_INFO.txt" <<EOF
-ROOT_DIR=$ROOT_DIR
-ASSIGN_DIR=$ASSIGN_DIR
-RUN_BASE=$RUN_BASE
-OUT_QN=$OUT_QN
-OUT_S1=$OUT_S1
-OUT_S2=$OUT_S2
-OUT_RUSTY=$OUT_RUSTY
-OUT_CLUSTER=$OUT_CLUSTER
-WORKERS_QN=$WORKERS_QN
-WORKERS_S1=$WORKERS_S1
-WORKERS_S2=$WORKERS_S2
-WORKERS_RUSTY=$WORKERS_RUSTY
-WORKERS_CLUSTER=$WORKERS_CLUSTER
-EOF
+for idx in "${!ENDPOINT_NAMES[@]}"; do
+  name="${ENDPOINT_NAMES[$idx]}"
+  launch "$name" "${ENDPOINT_RPCS[$idx]}" "${ENDPOINT_WORKERS[$idx]}"
+  {
+    echo "ENDPOINT_${name}_OUT=$RUN_BASE/full_ledger_${name}"
+    echo "ENDPOINT_${name}_WORKERS=${ENDPOINT_WORKERS[$idx]}"
+  } >> "$RUN_BASE/RUN_INFO.txt"
+done
 
 echo
-echo "started all full-ledger jobs"
+echo "started full-ledger jobs"
 echo "run_base: $RUN_BASE"
 echo "logs: $RUN_BASE/logs"
 echo
 echo "monitor examples:"
-echo "  tail -f $RUN_BASE/logs/quicknode.log"
-echo "  tail -f $RUN_BASE/logs/ripple_s1.log"
-echo "  tail -f $RUN_BASE/logs/ripple_s2.log"
-echo "  tail -f $RUN_BASE/logs/rustychain.log"
-echo "  tail -f $RUN_BASE/logs/xrplcluster.log"
+for name in "${ENDPOINT_NAMES[@]}"; do
+  echo "  tail -f $RUN_BASE/logs/${name}.log"
+done

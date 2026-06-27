@@ -33,6 +33,11 @@ def _parse_args() -> argparse.Namespace:
         default=[],
         help="Explicit tx hash to include. May be repeated.",
     )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Write empty target files instead of failing when no reports are selected.",
+    )
     return parser.parse_args()
 
 
@@ -115,7 +120,39 @@ def main() -> None:
         explicit_txs=explicit_txs,
     )
     if not reports:
-        raise RuntimeError("no reports selected")
+        if not args.allow_empty:
+            raise RuntimeError("no reports selected")
+        _write_csv(
+            outdir / "selected_txs.csv",
+            [],
+            fieldnames=[
+                "tx_hash",
+                "ledger_index",
+                "transaction_index",
+                "selected_side",
+                "used_prebook_ledger",
+                "magnitude",
+            ],
+        )
+        _write_csv(
+            outdir / "account_offers_targets.csv",
+            [],
+            fieldnames=["ledger_index", "account"],
+        )
+        manifest = {
+            "scope": "account_offers_snapshot_inputs",
+            "report_dir": str(report_dir),
+            "tx_prebook_snapshots": str(snapshots_path),
+            "mag_threshold": args.mag_threshold,
+            "explicit_tx_hashes": sorted(explicit_txs),
+            "selected_tx_count": 0,
+            "target_pair_count": 0,
+            "selected_txs_csv": str(outdir / "selected_txs.csv"),
+            "account_offers_targets_csv": str(outdir / "account_offers_targets.csv"),
+        }
+        (outdir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(json.dumps(manifest, indent=2))
+        return
 
     selected_targets = {
         (_normalise_tx_hash(report["tx_hash"]), _selected_side(report))

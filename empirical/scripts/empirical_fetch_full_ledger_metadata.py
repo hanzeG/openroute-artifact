@@ -15,7 +15,16 @@ import requests
 
 
 def default_rpc() -> str:
-    for key in ("XRPL_QN_RPC", "XRPL_QN_RPC_1", "XRPL_QN_RPC_2", "XRPL_QN_RPC_3", "XRPL_QN_RPC_4"):
+    keys = [
+        "XRPL_RIPPLE_S2_RPC",
+        "XRPL_RIPPLE_S1_RPC",
+        "XRPL_CLUSTER_RPC",
+        "XRPL_EXTRA_RPC_1",
+        "XRPL_EXTRA_RPC_2",
+        "XRPL_EXTRA_RPC_3",
+        "XRPL_EXTRA_RPC_4",
+    ]
+    for key in keys:
         value = os.environ.get(key)
         if value:
             return value
@@ -220,7 +229,7 @@ def _load_done_ledgers(raw_dir: Path) -> set[int]:
 def main() -> None:
     args = parse_args()
     if not args.rpc:
-        raise SystemExit("missing --rpc and no XRPL_QN_RPC found in environment")
+        raise SystemExit("missing --rpc and no XRPL RPC endpoint found in environment")
     ledgers = load_ledgers(Path(args.ledger_list))
     if not ledgers:
         raise SystemExit("ledger list is empty")

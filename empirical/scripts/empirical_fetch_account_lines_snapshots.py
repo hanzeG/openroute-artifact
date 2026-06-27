@@ -15,7 +15,15 @@ import requests
 
 
 def _default_rpc() -> str:
-    for key in ("XRPL_QN_RPC", "XRPL_RIPPLE_S1_RPC", "XRPL_RIPPLE_S2_RPC", "XRPL_CLUSTER_RPC", "XRPL_RUSTYCHAIN_RPC"):
+    for key in (
+        "XRPL_RIPPLE_S2_RPC",
+        "XRPL_RIPPLE_S1_RPC",
+        "XRPL_CLUSTER_RPC",
+        "XRPL_EXTRA_RPC_1",
+        "XRPL_EXTRA_RPC_2",
+        "XRPL_EXTRA_RPC_3",
+        "XRPL_EXTRA_RPC_4",
+    ):
         value = os.environ.get(key)
         if value:
             return str(value)

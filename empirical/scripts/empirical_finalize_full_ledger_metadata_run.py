@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--run-dir", required=True, help="Source run directory containing full_ledger_* outputs")
     p.add_argument("--assignment-dir", required=True, help="Assignment directory with ledgers_*.txt and required_tx_*.csv")
     p.add_argument("--master-ledger-list", required=True, help="Canonical ledger_list.txt in desired merged order")
-    p.add_argument("--master-required-tx", required=True, help="Canonical required_tx.csv for the full scope")
+    p.add_argument("--master-required-tx", default=None, help="Optional canonical required_tx.csv for the full scope")
     p.add_argument("--outdir", required=True, help="Canonical output directory")
     p.add_argument(
         "--low-space-stream-merge",
@@ -62,7 +62,7 @@ def main() -> None:
     run_dir = Path(args.run_dir)
     assignment_dir = Path(args.assignment_dir)
     master_ledger_list = Path(args.master_ledger_list)
-    master_required_tx = Path(args.master_required_tx)
+    master_required_tx = Path(args.master_required_tx) if args.master_required_tx else None
     outdir = Path(args.outdir)
 
     if not run_dir.exists():
@@ -77,22 +77,22 @@ def main() -> None:
     if not expected_ledgers:
         raise SystemExit("master ledger list is empty")
 
-    endpoint_map = {
-        "qn": "full_ledger_qn",
-        "s1": "full_ledger_s1",
-        "s2": "full_ledger_s2",
-        "rusty": "full_ledger_rusty",
-        "cluster": "full_ledger_cluster",
-    }
-
     outdir.mkdir(parents=True, exist_ok=False)
-    out_raw = outdir / "raw_ledgers"
-    out_raw.mkdir(parents=True, exist_ok=False)
 
     assignment_manifest_src = assignment_dir / "assignment_manifest.json"
     _copy_file(assignment_manifest_src, outdir / "assignment_manifest.json")
     _copy_file(master_ledger_list, outdir / "ledger_list.txt")
-    _copy_file(master_required_tx, outdir / "required_tx.csv")
+    if master_required_tx is not None:
+        _copy_file(master_required_tx, outdir / "required_tx.csv")
+
+    try:
+        assignment_manifest = json.loads(assignment_manifest_src.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"invalid assignment manifest: {assignment_manifest_src}") from exc
+    assignment_entries = assignment_manifest.get("assignments")
+    if not isinstance(assignment_entries, dict) or not assignment_entries:
+        raise RuntimeError(f"assignment manifest has no assignments: {assignment_manifest_src}")
+    endpoint_map = {str(name): f"full_ledger_{name}" for name in assignment_entries}
 
     endpoint_stats: dict[str, dict[str, object]] = {}
     seen_ledgers: dict[int, str] = {}
@@ -182,7 +182,7 @@ def main() -> None:
         "source_run_dir": str(run_dir),
         "assignment_dir": str(assignment_dir),
         "master_ledger_list": str(master_ledger_list),
-        "master_required_tx": str(master_required_tx),
+        "master_required_tx": str(master_required_tx) if master_required_tx is not None else None,
         "outdir": str(outdir),
         "merged_ledgers": merged_ledgers,
         "merged_rows": merged_rows,

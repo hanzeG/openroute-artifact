@@ -88,11 +88,17 @@ while true; do
   clear
   echo "prebook monitor | run_base=$RUN_BASE | ts=$(date '+%Y-%m-%d %H:%M:%S')"
   echo "--------------------------------------------------------------------------------------------------------------"
-  print_row "quicknode_pool" "$RUN_BASE/prebook_qn_pool"
-  print_row "ripple_s1" "$RUN_BASE/prebook_s1"
-  print_row "ripple_s2" "$RUN_BASE/prebook_s2"
-  print_row "rustychain" "$RUN_BASE/prebook_rusty"
-  print_row "xrplcluster" "$RUN_BASE/prebook_cluster"
+  shopt -s nullglob
+  pid_files=("$RUN_BASE"/pids/*.pid)
+  shopt -u nullglob
+  if [[ ${#pid_files[@]} -eq 0 ]]; then
+    echo "no pid files found under $RUN_BASE/pids"
+  else
+    for pid_file in "${pid_files[@]}"; do
+      name="$(basename "$pid_file" .pid)"
+      print_row "$name" "$RUN_BASE/prebook_${name}"
+    done
+  fi
   echo "--------------------------------------------------------------------------------------------------------------"
   echo "stop monitor: Ctrl+C"
   sleep "$INTERVAL"

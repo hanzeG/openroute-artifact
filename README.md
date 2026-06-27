@@ -1,17 +1,31 @@
-# OpenRoute Artifact Commands
+# OpenRoute Artifact
 
-## 0. Environment
+Commands below reproduce the empirical inputs, baseline replay checks, same-fill optimisation outputs, and derived result summaries.
+
+## 0. Setup
 
 ```bash
 conda env create -f environment.yml
 conda activate xrpl-amm-clob
 pip install -e .
-```
 
-```bash
 cd empirical/rust/tx_prebook_replay
 cargo build --release
 cd ../../..
+```
+
+```bash
+cp .env.example .env
+set -a
+source .env
+set +a
+```
+
+Copy the Delta Sharing profile into `data/config.share`:
+
+```bash
+cp data/config.share.example data/config.share
+chmod 600 data/config.share
 ```
 
 ## 1. Quick Check
@@ -19,177 +33,208 @@ cd ../../..
 ```bash
 PYTHONPATH=src pytest \
   tests/ci/test_smoke_imports.py \
+  tests/ci/test_empirical_dry_run.py \
   tests/rebuild/test_core_kernel.py \
   tests/rebuild/test_amm_rebuild.py
 ```
 
-## 2. Configure a Run
+## 2. Resolve the Ten Paper Pairs
 
 ```bash
-PAIR=rlusd_xrp
-BASE_LABEL=RLUSD
-ISSUER=rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De
-CURRENCY_HEX=524C555344000000000000000000000000000000
-LEDGER_START=100725835
-LEDGER_END=101035981
-WINDOW=ledger_${LEDGER_START}_${LEDGER_END}
-RPC=https://s2.ripple.com:51234/
-JOBS=8
-SHARE_PROFILE=data/config.share
-SHARE=ripple-ubri-share
-SCHEMA=ripplex
-TABLE_AMM=fact_amm_swaps
-TABLE_CLOB=offers_fact_tx
-TABLE_FEES=fact_amm_fees
+python empirical/scripts/empirical_resolve_paper_pairs.py \
+  --pair-config configs/empirical/paper_pairs.json \
+  --share-profile data/config.share \
+  --share ripple-ubri-share \
+  --schema ripplex \
+  --table-amm fact_amm_swaps \
+  --output artifacts/config/paper_pairs.resolved.json
 ```
 
+## 3. Build Dataset Roots
+
 ```bash
-mkdir -p artifacts/lists/${PAIR}/${WINDOW}
-seq ${LEDGER_START} ${LEDGER_END} > artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
-LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+PAIR_LIST=(rlusd_xrp solo_xrp 666_xrp xah_xrp core_xrp fuzzy_xrp cny_xrp usdc_xrp 589_xrp mallard_xrp)
+RPC=${XRPL_RIPPLE_S2_RPC}
+JOBS=${XRPL_FETCH_WORKERS:-8}
 ```
 
+Run the following loop. It creates one canonical dataset root per pair under `artifacts/fit_inputs`.
+
 ```bash
-cp data/config.share.example data/config.share
-chmod 600 data/config.share
-# Edit data/config.share before running Delta Sharing export commands.
-cat configs/empirical/delta_sharing_tables.json
+for PAIR in "${PAIR_LIST[@]}"; do
+  eval "$(python empirical/scripts/empirical_pair_env.py \
+    --pair-config artifacts/config/paper_pairs.resolved.json \
+    --pair "${PAIR}")"
+
+  EXPORT_DIR=artifacts/exports/${PAIR}/${WINDOW}
+  INPUT_DIR=artifacts/inputs/${PAIR}/${WINDOW}
+  METADATA_DIR=artifacts/metadata/${PAIR}/${WINDOW}
+  TARGET_DIR=artifacts/targets/${PAIR}/${WINDOW}/strict_direct
+  PREBOOK_DIR=artifacts/prebook/${PAIR}/${WINDOW}
+  REPLAY_DIR=artifacts/replay/${PAIR}/${WINDOW}
+  DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+
+  mkdir -p artifacts/lists/${PAIR}/${WINDOW}
+  seq ${LEDGER_START} ${LEDGER_END} > artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+  LEDGER_LIST=artifacts/lists/${PAIR}/${WINDOW}/ledger_list.txt
+
+  python empirical/scripts/empirical_export_window.py \
+    --pair ${PAIR} \
+    --share-profile data/config.share \
+    --share ripple-ubri-share \
+    --schema ripplex \
+    --table-amm fact_amm_swaps \
+    --table-clob offers_fact_tx \
+    --table-fees fact_amm_fees \
+    --ledger-start ${LEDGER_START} \
+    --ledger-end ${LEDGER_END} \
+    --base-currency ${CURRENCY_HEX} \
+    --base-issuer ${ISSUER} \
+    --counter-currency XRP \
+    --counter-issuer "" \
+    --output-dir ${EXPORT_DIR}
+
+  python empirical/scripts/empirical_build_window_tx_and_prebook_ledgers.py \
+    --export-dir ${EXPORT_DIR} \
+    --outdir ${INPUT_DIR}
+
+  python empirical/scripts/empirical_fetch_full_ledger_metadata.py \
+    --ledger-list ${LEDGER_LIST} \
+    --outdir ${METADATA_DIR} \
+    --rpc ${RPC} \
+    --workers ${JOBS}
+
+  python empirical/scripts/empirical_build_strict_direct_target_tx.py \
+    --tx-sequence ${INPUT_DIR}/full_tx_sequence.parquet \
+    --metadata-ndjson ${METADATA_DIR}/tx_metadata_full_merged.ndjson \
+    --base-currency ${CURRENCY_HEX} \
+    --base-label ${BASE_LABEL} \
+    --counter-currency XRP \
+    --counter-label XRP \
+    --outdir ${TARGET_DIR}
+
+  python empirical/scripts/empirical_fetch_prebook_from_ledger_data.py \
+    --rpc ${RPC} \
+    --ledger-list ${INPUT_DIR}/prebook_ledgers_full.txt \
+    --outdir ${PREBOOK_DIR} \
+    --issuer ${ISSUER} \
+    --currency-hex ${CURRENCY_HEX} \
+    --output-prefix book \
+    --workers ${JOBS}
+
+  python empirical/scripts/empirical_prepare_full_replay_account_lines_inputs.py \
+    --metadata-ndjson ${METADATA_DIR}/tx_metadata_full_merged.ndjson \
+    --required-tx-csv ${TARGET_DIR}/required_tx.csv \
+    --output-csv artifacts/account_lines/${PAIR}/${WINDOW}/targets.csv
+
+  python empirical/scripts/empirical_fetch_account_lines_snapshots.py \
+    --input-csv artifacts/account_lines/${PAIR}/${WINDOW}/targets.csv \
+    --outdir artifacts/account_lines/${PAIR}/${WINDOW} \
+    --rpc ${RPC} \
+    --workers ${JOBS} \
+    --rps ${JOBS}
+
+  python empirical/scripts/empirical_replay_tx_prebook_rust.py \
+    --ledger-start ${LEDGER_START} \
+    --ledger-end ${LEDGER_END} \
+    --book-gets-xrp ${PREBOOK_DIR}/book_getsXRP.ndjson \
+    --book-gets-rusd ${PREBOOK_DIR}/book_getsrUSD.ndjson \
+    --metadata-ndjson ${METADATA_DIR}/tx_metadata_full_merged.ndjson \
+    --target-tx-file ${TARGET_DIR}/required_tx.csv \
+    --account-lines-snapshots artifacts/account_lines/${PAIR}/${WINDOW}/account_lines_snapshots.ndjson \
+    --amm-swaps ${EXPORT_DIR}/amm_swaps \
+    --clob-legs ${EXPORT_DIR}/clob_legs \
+    --output-dir ${REPLAY_DIR}
+
+  python empirical/scripts/empirical_assemble_dataset_root.py \
+    --pair-config artifacts/config/paper_pairs.resolved.json \
+    --pair ${PAIR} \
+    --metadata-ndjson ${METADATA_DIR}/tx_metadata_full_merged.ndjson \
+    --tx-prebook-snapshots ${REPLAY_DIR}/tx_prebook_replay_snapshots.ndjson \
+    --required-tx ${TARGET_DIR}/required_tx.csv \
+    --ledger-list ${LEDGER_LIST} \
+    --amm-swaps ${EXPORT_DIR}/amm_swaps \
+    --amm-fees ${EXPORT_DIR}/amm_fees \
+    --output-dir ${DATASET}
+
+  python empirical/scripts/empirical_prepare_issuer_transfer_rate_ranges.py \
+    --dataset-root ${DATASET} \
+    --rpc-url ${RPC} \
+    --write
+
+  python empirical/scripts/empirical_fetch_offer_tick_sizes.py \
+    --required-tx ${DATASET}/required_tx.csv \
+    --metadata-ndjson ${DATASET}/tx_metadata_full_merged.ndjson \
+    --outdir ${DATASET} \
+    --rpc ${RPC} \
+    --workers ${JOBS}
+
+  python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
+    --dataset-root ${DATASET} \
+    --output-dir artifacts/compare/${PAIR}/${WINDOW}/preliminary_fit \
+    --aggregate-only \
+    --write-structure-false-reports \
+    --top-relative-errors 50
+
+  python empirical/scripts/empirical_prepare_account_offers_snapshot_inputs.py \
+    --report-dir artifacts/compare/${PAIR}/${WINDOW}/preliminary_fit/reports \
+    --tx-prebook-snapshots ${DATASET}/tx_prebook_snapshots.ndjson \
+    --outdir artifacts/account_offers/${PAIR}/${WINDOW} \
+    --allow-empty
+
+  if [ "$(wc -l < artifacts/account_offers/${PAIR}/${WINDOW}/account_offers_targets.csv)" -gt 1 ]; then
+    python empirical/scripts/empirical_fetch_account_offers_snapshots.py \
+      --input-csv artifacts/account_offers/${PAIR}/${WINDOW}/account_offers_targets.csv \
+      --outdir artifacts/account_offers/${PAIR}/${WINDOW} \
+      --rpc ${RPC} \
+      --workers ${JOBS} \
+      --rps ${JOBS}
+
+    cp artifacts/account_offers/${PAIR}/${WINDOW}/account_offers_ok.ndjson \
+      ${DATASET}/account_offers_snapshots.ndjson
+  fi
+
+  python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
+    --dataset-root ${DATASET} \
+    --output-dir artifacts/compare/${PAIR}/${WINDOW}/final_fit \
+    --aggregate-only \
+    --top-relative-errors 50
+done
 ```
 
-## 3. Fetch and Build Inputs
+## 4. Same-Fill Optimisation
 
 ```bash
-python empirical/scripts/empirical_fetch_full_ledger_metadata.py \
-  --ledger-list ${LEDGER_LIST} \
-  --outdir artifacts/metadata/${PAIR}/${WINDOW} \
-  --rpc ${RPC} \
-  --workers ${JOBS}
-```
+PAIR_ARGS=()
+for PAIR in "${PAIR_LIST[@]}"; do
+  eval "$(python empirical/scripts/empirical_pair_env.py \
+    --pair-config artifacts/config/paper_pairs.resolved.json \
+    --pair "${PAIR}")"
+  DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
+  PAIR_ARGS+=(--pair "${PAIR_LABEL}=${DATASET}/dataset_manifest.json")
+done
 
-```bash
-python empirical/scripts/empirical_export_window.py \
-  --pair ${PAIR} \
-  --share-profile ${SHARE_PROFILE} \
-  --share ${SHARE} \
-  --schema ${SCHEMA} \
-  --table-amm ${TABLE_AMM} \
-  --table-clob ${TABLE_CLOB} \
-  --table-fees ${TABLE_FEES} \
-  --ledger-start ${LEDGER_START} \
-  --ledger-end ${LEDGER_END} \
-  --base-currency ${CURRENCY_HEX} \
-  --base-issuer ${ISSUER} \
-  --counter-currency XRP \
-  --counter-issuer "" \
-  --output-dir artifacts/exports/${PAIR}/${WINDOW}
-```
-
-```bash
-python empirical/scripts/empirical_build_full_tx_and_prebook_ledgers.py \
-  --base-dir artifacts/exports/${PAIR} \
-  --date-start 2025-12-08 \
-  --date-end 2025-12-22 \
-  --outdir artifacts/inputs/${PAIR}/${WINDOW}
-```
-
-```bash
-python empirical/scripts/empirical_build_strict_direct_target_tx.py \
-  --tx-sequence artifacts/inputs/${PAIR}/${WINDOW}/full_tx_sequence.parquet \
-  --metadata-ndjson artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
-  --base-currency ${CURRENCY_HEX} \
-  --base-label ${BASE_LABEL} \
-  --counter-currency XRP \
-  --counter-label XRP \
-  --outdir artifacts/targets/${PAIR}/${WINDOW}/strict_direct
-```
-
-```bash
-python empirical/scripts/empirical_fetch_prebook_from_ledger_data.py \
-  --rpc ${RPC} \
-  --ledger-list artifacts/inputs/${PAIR}/${WINDOW}/prebook_ledgers_full.txt \
-  --outdir artifacts/prebook/${PAIR}/${WINDOW} \
-  --issuer ${ISSUER} \
-  --currency-hex ${CURRENCY_HEX} \
-  --output-prefix book \
-  --workers ${JOBS}
-```
-
-## 4. Replay Prebook
-
-```bash
-python empirical/scripts/empirical_replay_tx_prebook_rust.py \
-  --ledger-start ${LEDGER_START} \
-  --ledger-end ${LEDGER_END} \
-  --book-gets-xrp artifacts/prebook/${PAIR}/${WINDOW}/book_getsXRP.ndjson \
-  --book-gets-rusd artifacts/prebook/${PAIR}/${WINDOW}/book_getsrUSD.ndjson \
-  --metadata-ndjson artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
-  --target-tx-file artifacts/targets/${PAIR}/${WINDOW}/strict_direct/required_tx.csv \
-  --amm-swaps artifacts/exports/${PAIR}/${WINDOW}/amm_swaps \
-  --clob-legs artifacts/exports/${PAIR}/${WINDOW}/clob_legs \
-  --output-dir artifacts/replay/${PAIR}/${WINDOW}
-```
-
-## 5. Assemble Dataset Root
-
-```bash
-DATASET=artifacts/fit_inputs/${PAIR}/${WINDOW}/strict_direct_targets/two_week_isolated
-mkdir -p ${DATASET}
-
-cp artifacts/metadata/${PAIR}/${WINDOW}/tx_metadata_full_merged.ndjson \
-  ${DATASET}/tx_metadata_full_merged.ndjson
-cp artifacts/replay/${PAIR}/${WINDOW}/tx_prebook_replay_snapshots.ndjson \
-  ${DATASET}/tx_prebook_snapshots.ndjson
-cp artifacts/targets/${PAIR}/${WINDOW}/strict_direct/required_tx.csv \
-  ${DATASET}/required_tx.csv
-cp ${LEDGER_LIST} ${DATASET}/ledger_list.txt
-cp -R artifacts/exports/${PAIR}/${WINDOW}/amm_swaps \
-  ${DATASET}/amm_swaps_two_week.parquet
-cp -R artifacts/exports/${PAIR}/${WINDOW}/amm_fees \
-  ${DATASET}/amm_fees_two_week.parquet
-```
-
-```bash
-cat > ${DATASET}/dataset_manifest.json <<EOF
-{
-  "pair": "${PAIR}",
-  "window": "${WINDOW}",
-  "base_currency": "${CURRENCY_HEX}",
-  "base_label": "${BASE_LABEL}",
-  "counter_currency": "XRP",
-  "counter_label": "XRP"
-}
-EOF
-```
-
-If the target set includes `OfferCreate`, also place
-`offer_tick_sizes_at_ledger_*.json` snapshots in `${DATASET}`.
-
-## 6. Baseline Replay Check
-
-```bash
-python empirical/scripts/empirical_run_strict_direct_two_week_fit.py \
-  --dataset-root ${DATASET} \
-  --output-dir artifacts/compare/${PAIR}/${WINDOW}/isolated_fit \
-  --aggregate-only \
-  --top-relative-errors 50
-```
-
-## 7. Same-Fill Optimisation
-
-```bash
 python empirical/scripts/empirical_run_best_price_fixed_output_pairs.py \
-  --pair ${PAIR}=${DATASET}/dataset_manifest.json \
+  "${PAIR_ARGS[@]}" \
   --output-root artifacts/optimisation/${WINDOW} \
   --pair-workers 1 \
   --jobs-per-pair ${JOBS} \
   --layer1-measurement-policy both
 ```
 
+## 5. Paper Data Summaries
+
 ```bash
 python empirical/scripts/empirical_summarize_layer1_same_fill_pairs.py \
   --batch-root artifacts/optimisation/${WINDOW} \
-  --output-md artifacts/optimisation/${WINDOW}/summary.md \
-  --output-json artifacts/optimisation/${WINDOW}/summary.json
+  --output-md artifacts/results/same_fill_summary.md \
+  --output-json artifacts/results/same_fill_summary.json
+
+python empirical/scripts/empirical_summarize_paper_data.py \
+  --results-root artifacts/optimisation/${WINDOW} \
+  --pair-config artifacts/config/paper_pairs.resolved.json \
+  --fit-input-root artifacts/fit_inputs \
+  --output-dir artifacts/results/paper_data
 ```
 
-Generated data stays under `artifacts/` and is ignored by Git.
+Baseline replay reports are written to `artifacts/compare/*/*/final_fit/error_analysis.md`.

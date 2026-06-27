@@ -123,6 +123,7 @@ def main() -> int:
     required_tx_csv = dataset_root / "required_tx.csv"
     ledger_list = dataset_root / "ledger_list.txt"
     dataset_manifest = dataset_root / "dataset_manifest.json"
+    account_offers_snapshots = dataset_root / "account_offers_snapshots.ndjson"
 
     output_dir = (
         Path(args.output_dir)
@@ -184,6 +185,8 @@ def main() -> int:
         "--base-label",
         base_label,
     ]
+    if account_offers_snapshots.exists():
+        cmd.extend(["--account-offers-snapshots", str(account_offers_snapshots)])
     if args.max_samples is not None:
         cmd.extend(["--max-samples", str(args.max_samples)])
     if args.aggregate_only:
@@ -230,6 +233,7 @@ def main() -> int:
         "amm_fees": str(amm_fees),
         "required_tx_csv": str(required_tx_csv),
         "ledger_list": str(ledger_list),
+        "account_offers_snapshots": str(account_offers_snapshots) if account_offers_snapshots.exists() else None,
         "offer_tick_size_snapshots": [str(path) for path in tick_size_snapshots],
         "output_dir": str(output_dir),
         "error_analysis": str(report_path),

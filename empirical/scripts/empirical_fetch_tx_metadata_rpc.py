@@ -16,7 +16,16 @@ import requests
 
 
 def default_rpc() -> str:
-    for key in ("XRPL_QN_RPC", "XRPL_QN_RPC_1", "XRPL_QN_RPC_2", "XRPL_QN_RPC_3", "XRPL_QN_RPC_4"):
+    keys = [
+        "XRPL_RIPPLE_S2_RPC",
+        "XRPL_RIPPLE_S1_RPC",
+        "XRPL_CLUSTER_RPC",
+        "XRPL_EXTRA_RPC_1",
+        "XRPL_EXTRA_RPC_2",
+        "XRPL_EXTRA_RPC_3",
+        "XRPL_EXTRA_RPC_4",
+    ]
+    for key in keys:
         value = os.environ.get(key)
         if value:
             return value
@@ -26,7 +35,7 @@ def default_rpc() -> str:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
-            "Fetch XRPL tx metadata from QuickNode with stable RPS limiting, "
+            "Fetch XRPL tx metadata from a JSON-RPC endpoint with stable RPS limiting, "
             "immediate append writes, and resume support."
         )
     )
@@ -39,7 +48,7 @@ def parse_args() -> argparse.Namespace:
             "2) a directory containing tx_hashes_part_*_of_*.txt"
         ),
     )
-    p.add_argument("--rpc", default=default_rpc(), help="QuickNode RPC URL")
+    p.add_argument("--rpc", default=default_rpc(), help="XRPL JSON-RPC endpoint")
     p.add_argument("--outdir", required=True, help="Output directory")
     p.add_argument("--workers", type=int, default=12, help="Thread workers (recommend 12-15)")
     p.add_argument("--rps", type=float, default=12.0, help="Global request rate limit")
@@ -151,7 +160,7 @@ class GlobalRateLimiter:
 def main() -> None:
     args = parse_args()
     if not args.rpc:
-        raise SystemExit("missing --rpc and no XRPL_QN_RPC found in environment")
+        raise SystemExit("missing --rpc and no XRPL RPC endpoint found in environment")
     inp = Path(args.input)
     if not inp.exists():
         raise SystemExit(f"input not found: {inp}")
